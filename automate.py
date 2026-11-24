@@ -1,25 +1,23 @@
-"""Playwright driver.
+"""Драйвер Playwright для заполнения форм жалоб вендоров.
 
-Per site, in parallel (5 at a time):
-  1. open the report page, decline cookies
-  2. fill text fields (URL / email / name / comment)
-  3. pick threat-type dropdowns and radios ("Phishing", "Fraud", "Malicious"...)
-  4. replay anything you taught it on a previous run (recipes/<site>.json)
-  5. detect whether a CAPTCHA guards the form
-  6. STOP. Nothing is submitted until you press Submit all.
+Для каждого сайта параллельно (по 5 вкладок):
+1. открывает форму жалобы и отклоняет cookie-баннер
+2. заполняет текстовые поля (URL / email / имя / комментарий)
+3. выбирает тип угрозы («Phishing», «Fraud», «Malicious»...) и бренд («Другое» при отсутствии ЗЯ)
+4. воспроизводит шаги из сохранённого рецепта (recipes/<site>.json)
+5. определяет наличие CAPTCHA
+6. ОСТАНАВЛИВАЕТСЯ. Ничего не отправляется до нажатия «Отправить все».
 
-While tabs are open it records what you click and choose, so next run does it
-for you. Passwords are never recorded; your text is stored as {{url}}-style
-tokens, never raw.
-
-It never navigates to the phishing site. Runs in a throwaway profile.
+Не переходит на сам фишинговый сайт. Работает в отдельном профиле браузера.
 """
 import asyncio
 import json
 import os
 import re
+import shutil
 from datetime import datetime, timezone
 
+import reactor as fs
 from sites import SITES
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -29,23 +27,39 @@ LOG_PATH = os.path.join(HERE, "reports", "log.jsonl")
 RECORDER_JS = os.path.join(HERE, "recorder.js")
 MAX_PARALLEL = 5
 
-# ---- field classification -------------------------------------------------
-PATTERNS = [
-    ("email",   re.compile(r"e-?mail|contact", re.I)),
-    ("url",     re.compile(r"\burl\b|website|web site|\bsite\b|address|domain|link|search|query|\bq\b", re.I)),
-    ("comment", re.compile(r"comment|descri|detail|message|reason|note|additional|explain|remark", re.I)),
-    ("name",    re.compile(r"(^|[^a-z])name([^a-z]|$)|full.?name|your.?name", re.I)),
-]
-SKIP_PAT = re.compile(r"captcha|password|card|phone|subscribe|newsletter", re.I)
+BRAND_LABEL = fs.TARGET_BRAND_LABEL
 
-# ---- threat type / category, best choice first ----------------------------
+# ---- классификация полей формы --------------------------------------------
+PATTERNS = [
+    ("email",   re.compile(r"e-?mail|contact|почт", re.I)),
+    ("url",     re.compile(r"\burl\b|website|web site|\bsite\b|address|domain|link|search|query|\bq\b|ссылк|сайт|домен|адрес", re.I)),
+    ("comment", re.compile(r"comment|descri|detail|message|reason|note|additional|explain|remark|коммент|описан|причин|подробн|сообщен", re.I)),
+    ("name",    re.compile(r"(^|[^a-zа-яё])name([^a-zа-яё]|$)|full.?name|your.?name|ваше имя|фио|\bимя\b", re.I)),
+]
+SKIP_PAT = re.compile(r"captcha|password|card|phone|subscribe|newsletter|капча|парол|карт|телефон", re.I)
+
+# ---- тип угрозы / категории (сначала самые точные) ------------------------
 THREAT_WORDS = [
-    r"phish", r"credential.?(theft|harvest)", r"deceptive", r"fraud", r"scam",
-    r"spoof", r"impersonat", r"malicious", r"\bmalware\b", r"security risk",
-    r"suspicious", r"spam", r"compromis",
+    r"phish", r"фишинг", r"credential.?(theft|harvest)", r"deceptive", r"fraud", r"scam",
+    r"мошеннич", r"spoof", r"impersonat", r"malicious", r"вредонос", r"\bmalware\b",
+    r"security risk", r"suspicious", r"подозрительн", r"spam", r"compromis",
 ]
 THREAT_RE = [re.compile(w, re.I) for w in THREAT_WORDS]
-NEGATIVE_RE = re.compile(r"not |false positive|clean|safe|benign|remove|unblock|legitimate|dispute this", re.I)
+NEGATIVE_RE = re.compile(
+    r"not |false positive|clean|safe|benign|remove|unblock|legitimate|dispute this|не фишинг|безопасн|ложное",
+    re.I,
+)
+
+# ---- списки брендов на формах вендоров ------------------------------------
+BRAND_SELECT_RE = re.compile(
+    r"brand|target|company|organi[sz]ation|victim|impersonat|affected|бренд|организ|компан|сервис",
+    re.I,
+)
+GOLDAPPLE_OPTION_RE = re.compile(r"gold\s*-?\s*apple|золот\w*\s+яблок", re.I)
+OTHER_OPTION_RE = re.compile(
+    r"(^|\b)(other|others|not listed|not in list|none of the above|другое|другой|иное|нет в списке)(\b|$)",
+    re.I,
+)
 
 CAPTCHA_JS = """
 () => {
@@ -74,14 +88,21 @@ COLLECT_JS = """
 })
 """
 
-# Every <select> with its option texts, and every radio with its label.
+# Все <select> (с текстом подписей и опций) и все radio с подписями.
 CHOICES_JS = """
 () => {
   const out = {selects: [], radios: []};
   document.querySelectorAll('select').forEach((el, i) => {
     const r = el.getBoundingClientRect();
     if (!(r.width > 0 && r.height > 0) || el.disabled) return;
-    out.selects.push({ i, name: el.name || el.id || '',
+    let label = '';
+    if (el.labels) for (const l of el.labels) label += ' ' + (l.innerText || '');
+    if (el.id) { const fl = document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
+                 if (fl) label += ' ' + (fl.innerText || ''); }
+    const p = el.closest('label, .form-group, .field, td, li, div');
+    const sig = [el.name, el.id, el.getAttribute('aria-label'), label,
+                 p ? (p.innerText||'').slice(0,80) : ''].filter(Boolean).join(' ');
+    out.selects.push({ i, name: el.name || el.id || '', sig,
       chosen: el.selectedIndex,
       options: Array.from(el.options).map(o => ({v: o.value, t: (o.text||'').trim()})) });
   });
@@ -105,18 +126,38 @@ SUBMIT_SELECTORS = [
     "button[type=submit]", "input[type=submit]",
     "button:has-text('Submit Report')", "button:has-text('Send Report')",
     "button:has-text('Submit')", "button:has-text('Send')",
-    "button:has-text('Report')",
-    # lookup-first vendors: the first button advances to the report form
+    "button:has-text('Report')", "button:has-text('Отправить')", "button:has-text('Пожаловаться')",
+    # lookup-first вендоры: первая кнопка запускает проверку
     "button:has-text('Check')", "button:has-text('Look up')", "button:has-text('Lookup')",
-    "button:has-text('Search')", "a[role=button]:has-text('Submit')",
+    "button:has-text('Search')", "button:has-text('Проверить')",
+    "a[role=button]:has-text('Submit')",
 ]
 
 DECLINE_COOKIES = [
     "button:has-text('Reject all')", "button:has-text('Reject All')",
     "button:has-text('Decline')", "button:has-text('Only necessary')",
     "button:has-text('Necessary only')", "button:has-text('Deny')",
+    "button:has-text('Отклонить')",
     "#onetrust-reject-all-handler", ".ot-pc-refuse-all-handler",
 ]
+
+
+def ensure_brand_in_comment(comment, brand_label=BRAND_LABEL):
+    """Гарантирует, что в комментарии формы указан бренд «Золотое Яблоко (goldapple.ru)»."""
+    text = (comment or "").strip()
+    if not text:
+        return f"Phishing site impersonating {brand_label}."
+    if GOLDAPPLE_OPTION_RE.search(text):
+        return text
+    return f"Бренд: {brand_label}. {text}"
+
+
+def prepare_values(values):
+    """Нормализует значения формы: фиксирует бренд «Золотое Яблоко» и добавляет его в комментарий."""
+    out = dict(values or {})
+    out["brand"] = BRAND_LABEL
+    out["comment"] = ensure_brand_in_comment(out.get("comment", ""), BRAND_LABEL)
+    return out
 
 
 def classify(field):
@@ -138,7 +179,7 @@ def classify(field):
 
 
 def best_threat_option(texts):
-    """Index of the option that best means 'this is phishing'. None if no match."""
+    """Индекс опции, лучше всего обозначающей фишинг. None, если совпадений нет."""
     best, best_rank = None, len(THREAT_RE)
     for idx, t in enumerate(texts):
         if not t or NEGATIVE_RE.search(t):
@@ -150,7 +191,21 @@ def best_threat_option(texts):
     return best
 
 
-# ---- recipes --------------------------------------------------------------
+def best_brand_option(texts):
+    """Выбирает «Золотое Яблоко» в списке брендов; если его нет — «Другое» / Other.
+
+    Возвращает кортеж (index, mode), где mode in ('exact', 'other', None).
+    """
+    for idx, t in enumerate(texts):
+        if t and GOLDAPPLE_OPTION_RE.search(t):
+            return idx, "exact"
+    for idx, t in enumerate(texts):
+        if t and OTHER_OPTION_RE.search(t):
+            return idx, "other"
+    return None, None
+
+
+# ---- рецепты --------------------------------------------------------------
 
 def recipe_path(site_id):
     return os.path.join(RECIPES_DIR, f"{site_id}.json")
@@ -161,31 +216,27 @@ def load_recipe(site_id):
     if not os.path.exists(p):
         return []
     try:
-        return json.load(open(p)).get("steps", [])
+        with open(p, "r", encoding="utf-8") as f:
+            return json.load(f).get("steps", [])
     except Exception:
         return []
 
 
 def tokenize(value, values):
-    """Strip anything target-specific out of recorded text and leave a token.
-
-    Substring-level, not whole-value: a free-text answer like
-    "Fake Telegram login at tegexyy.top" becomes
-    "Fake {{brand}} login at {{domain}}" so it re-renders correctly for the next
-    victim brand instead of naming the wrong company."""
+    """Заменяет специфичные для цели значения на токены {{url}}, {{domain}}, {{brand}} и др."""
     if not isinstance(value, str) or not value.strip():
         return value
     out = value
     if values.get("comment") and out.strip() == str(values["comment"]).strip():
         return "{{comment}}"
-    # Longest actual value first, so the URL is tokenized before its own domain.
+    # Сначала самые длинные значения, чтобы URL заменился раньше домена.
     for kind in sorted(("url", "email", "comment", "name", "brand", "domain"),
                        key=lambda k: -len(str(values.get(k) or ""))):
         actual = str(values.get(kind) or "")
         if len(actual) >= 3:
             out = re.sub(re.escape(actual), "{{%s}}" % kind, out, flags=re.I)
     if "{{" not in out and len(out) > 120:
-        return "{{typed}}"   # long unrecognised prose: remember the field, forget the words
+        return "{{typed}}"
     return out
 
 
@@ -200,13 +251,7 @@ def detokenize(value, values):
 
 
 def generalizes_as(text, values):
-    """How should a recorded menu/radio choice carry over to the NEXT report?
-
-    threat  - "Phishing", "Malicious" - means the same thing every time, replay it
-    brand   - names the impersonated company - must be re-picked for the new brand
-    target  - names this URL/domain - must be re-derived
-    sticky  - unrecognised - replay it, but flag it for your glance
-    """
+    """Определяет, как переносить сохранённый выбор на следующую жалобу."""
     t = (text or "").strip()
     if not t:
         return "sticky"
@@ -216,7 +261,7 @@ def generalizes_as(text, values):
         if len(v) >= 4 and v.lower() in low:
             return "target"
     brand = str(values.get("brand") or "")
-    if len(brand) >= 3 and brand.lower() in low:
+    if (len(brand) >= 3 and brand.lower() in low) or GOLDAPPLE_OPTION_RE.search(t):
         return "brand"
     if not NEGATIVE_RE.search(t) and any(p.search(t) for p in THREAT_RE):
         return "threat"
@@ -227,42 +272,55 @@ def save_recipe(site_id, steps, values):
     if not steps:
         return 0
     os.makedirs(RECIPES_DIR, exist_ok=True)
+    norm = prepare_values(values)
     clean, seen = [], set()
     for s in steps:
         act = s.get("act")
         if act == "fill":
-            s = {**s, "value": tokenize(s.get("value"), values),
-                 "gen": generalizes_as(s.get("value"), values)}
+            s = {**s, "value": tokenize(s.get("value"), norm),
+                 "gen": generalizes_as(s.get("value"), norm)}
         elif act in ("select", "check"):
-            s = {**s, "gen": generalizes_as(s.get("text"), values),
-                 "text": tokenize(s.get("text"), values)}
+            s = {**s, "gen": generalizes_as(s.get("text"), norm),
+                 "text": tokenize(s.get("text"), norm)}
         key = (act, s.get("sel"), str(s.get("value")), str(s.get("checked")))
         if key in seen:
             continue
         seen.add(key)
         clean.append(s)
-    json.dump({"site": site_id, "updated": datetime.now(timezone.utc).isoformat(),
-               "learned_from_brand": values.get("brand") or None,
-               "steps": clean}, open(recipe_path(site_id), "w"), indent=2)
+    payload = {
+        "site": site_id,
+        "updated": datetime.now(timezone.utc).isoformat(),
+        "learned_from_brand": BRAND_LABEL,
+        "steps": clean,
+    }
+    with open(recipe_path(site_id), "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2, ensure_ascii=False)
     return len(clean)
 
 
-async def pick_option_matching(loc, wanted):
-    """Choose the <select> option whose visible text mentions `wanted`."""
+async def pick_option_matching(loc, wanted, fallback_other=False):
+    """Выбирает опцию <select>, содержащую `wanted`; при fallback_other выбирает «Другое»/Other."""
     try:
-        opts = await loc.evaluate("el => Array.from(el.options).map(o => [o.value, o.text])")
+        opts = await loc.evaluate("el => Array.from(el.options).map(o => [o.value, (o.text || '').trim()])")
     except Exception:
-        return None
-    for value, text in opts:
-        if wanted.lower() in (text or "").lower():
+        return None, None
+    texts = [t for _, t in opts]
+    if wanted:
+        for value, text in opts:
+            if wanted.lower() in text.lower():
+                await loc.select_option(value=value, timeout=2500)
+                return text, "exact"
+    if fallback_other:
+        idx, mode = best_brand_option(texts)
+        if idx is not None:
+            value, text = opts[idx]
             await loc.select_option(value=value, timeout=2500)
-            return text
-    return None
+            return text, mode
+    return None, None
 
 
 async def replay(page, steps, values):
-    """Replay learned steps, but re-derive anything that was specific to the last
-    target. Returns (steps_applied, flags) - flags are things you should eyeball."""
+    """Воспроизводит обученные шаги. Возвращает (steps_applied, flags)."""
     done, flags = 0, []
     for st in steps:
         gen = st.get("gen", "sticky")
@@ -278,28 +336,35 @@ async def replay(page, steps, values):
             elif act == "select":
                 if gen == "threat":
                     await loc.select_option(value=st.get("value"), timeout=2500)
-                elif gen in ("brand", "target"):
-                    wanted = values.get("brand" if gen == "brand" else "domain") or ""
-                    hit = await pick_option_matching(loc, wanted) if wanted else None
+                elif gen == "brand":
+                    hit, mode = await pick_option_matching(loc, values.get("brand", ""), fallback_other=True)
                     if not hit:
-                        flags.append(f"{gen} dropdown: no option for '{wanted}', left untouched")
+                        flags.append("список брендов: не найдено «Золотое Яблоко» и «Другое» — выберите вручную")
+                        continue
+                    if mode == "other":
+                        values["comment"] = ensure_brand_in_comment(values.get("comment", ""), BRAND_LABEL)
+                elif gen == "target":
+                    wanted = values.get("domain") or ""
+                    hit, _ = await pick_option_matching(loc, wanted, fallback_other=False) if wanted else (None, None)
+                    if not hit:
+                        flags.append(f"список цели: нет варианта для «{wanted}» — проверьте вручную")
                         continue
                 else:
                     await loc.select_option(value=st.get("value"), timeout=2500)
-                    flags.append(f"reused your old answer '{(st.get('text') or '')[:32]}' - check it")
+                    flags.append(f"повторён прошлый ответ «{(st.get('text') or '')[:32]}» — проверьте")
 
             elif act == "check":
                 if gen in ("brand", "target"):
-                    flags.append(f"skipped a {gen}-specific choice you made last time - set it yourself")
+                    flags.append("пропущен выбор, привязанный к прошлой цели — отметьте вручную")
                     continue
                 if st.get("checked", True):
                     await loc.check(timeout=2500)
                 if gen == "sticky":
-                    flags.append(f"reused your old choice '{(st.get('text') or '')[:32]}' - check it")
+                    flags.append(f"повторён прошлый флажок «{(st.get('text') or '')[:32]}» — проверьте")
 
             elif act == "click":
-                if re.search(r"submit|send|report now", st.get("text", ""), re.I):
-                    continue  # replaying a submit is the one thing we never do here
+                if re.search(r"submit|send|report now|отправить|пожаловаться", st.get("text", ""), re.I):
+                    continue  # автонажатие отправки из рецепта запрещено
                 await loc.click(timeout=2500)
             else:
                 continue
@@ -311,10 +376,10 @@ async def replay(page, steps, values):
     return done, flags
 
 
-# ---- page work ------------------------------------------------------------
+# ---- работа со страницей --------------------------------------------------
 
 async def recording(page, on):
-    """Recorder is armed only while the tab belongs to you."""
+    """Запись действий включена только пока вкладка находится в руках специалиста."""
     try:
         await page.evaluate(f"() => {{ window.__fsrec_on = {'true' if on else 'false'}; }}")
     except Exception:
@@ -352,8 +417,8 @@ async def fill_text(page, values):
     return done
 
 
-async def pick_threats(page):
-    """Set every dropdown / radio group that looks like a threat classifier."""
+async def pick_threats(page, values=None):
+    """Выбирает тип угрозы («Phishing» и аналоги) и бренд («Золотое Яблоко» или «Другое»)."""
     picked = []
     try:
         ch = await page.evaluate(CHOICES_JS)
@@ -361,14 +426,30 @@ async def pick_threats(page):
         return picked
     selects = page.locator("select")
     for s in ch["selects"]:
-        idx = best_threat_option([o["t"] for o in s["options"]])
-        if idx is None or idx == s["chosen"]:
+        opt_texts = [o["t"] for o in s["options"]]
+        idx = best_threat_option(opt_texts)
+        if idx is not None:
+            if idx == s["chosen"]:
+                continue
+            try:
+                await selects.nth(s["i"]).select_option(value=s["options"][idx]["v"], timeout=2500)
+                picked.append(f"{s['name'] or 'список'}={s['options'][idx]['t']}")
+            except Exception:
+                continue
             continue
-        try:
-            await selects.nth(s["i"]).select_option(value=s["options"][idx]["v"], timeout=2500)
-            picked.append(f"{s['name'] or 'dropdown'}={s['options'][idx]['t']}")
-        except Exception:
-            continue
+
+        # Если это список брендов — ищем «Золотое Яблоко», иначе выбираем «Другое» / Other
+        if BRAND_SELECT_RE.search(s.get("sig", "")):
+            b_idx, mode = best_brand_option(opt_texts)
+            if b_idx is not None and b_idx != s["chosen"]:
+                try:
+                    await selects.nth(s["i"]).select_option(value=s["options"][b_idx]["v"], timeout=2500)
+                    picked.append(f"{s['name'] or 'бренд'}={s['options'][b_idx]['t']}")
+                    if mode == "other" and values is not None:
+                        values["comment"] = ensure_brand_in_comment(values.get("comment", ""), BRAND_LABEL)
+                except Exception:
+                    continue
+
     radios = page.locator("input[type=radio]")
     by_group, seen_groups = {}, set()
     for r in ch["radios"]:
@@ -392,12 +473,10 @@ async def has_captcha(page):
     try:
         return bool(await page.evaluate(CAPTCHA_JS))
     except Exception:
-        return True  # can't tell -> assume yes, never auto-submit blind
+        return True  # если нельзя проверить — считаем, что CAPTCHA есть
 
 
 async def find_submit(page):
-    """A backgrounded tab reports differently than a fronted one, so anything that
-    is about to be clicked gets fronted first."""
     for sel in SUBMIT_SELECTORS:
         try:
             loc = page.locator(sel).first
@@ -419,7 +498,7 @@ async def prepare(ctx, site, url, values, recorder_src, sem, entry_cb):
     entry = {"site": site["id"], "name": site["name"], "kind": site["kind"],
              "filled": [], "picked": [], "replayed": 0, "captcha": None,
              "can_autosubmit": False, "submitted": False, "verified": False,
-             "stage": 1, "flags": [], "status": "opening",
+             "stage": 1, "flags": [], "status": "открытие",
              "note": site["note"], "ts": datetime.now(timezone.utc).isoformat(),
              "reported_url": url, "recipe_steps": len(load_recipe(site["id"]))}
     page = None
@@ -434,58 +513,58 @@ async def prepare(ctx, site, url, values, recorder_src, sem, entry_cb):
             await decline_cookies(page)
             await page.wait_for_timeout(1500)
 
+            entry["picked"] = await pick_threats(page, values)
             entry["filled"] = await fill_text(page, values)
             if not entry["filled"]:
-                # SPA sites paint their inputs late. One patient rescan.
+                # SPA-страницы отрисовывают поля с задержкой. Повторяем один раз.
                 await page.wait_for_timeout(4000)
                 await decline_cookies(page)
+                entry["picked"] = list(dict.fromkeys(entry["picked"] + await pick_threats(page, values)))
                 entry["filled"] = await fill_text(page, values)
 
-            entry["picked"] = await pick_threats(page)
             entry["replayed"], entry["flags"] = await replay(page, load_recipe(site["id"]), values)
             if entry["replayed"]:
-                entry["picked"] += await pick_threats(page)   # recipe may reveal new fields
-                if not entry["filled"]:
-                    entry["filled"] = await fill_text(page, values)
+                entry["picked"] = list(dict.fromkeys(entry["picked"] + await pick_threats(page, values)))
+                newly_filled = await fill_text(page, values)
+                entry["filled"] = list(dict.fromkeys(entry["filled"] + newly_filled))
 
             entry["captcha"] = await has_captcha(page)
             entry["can_autosubmit"] = (not entry["captcha"]) and bool(await find_submit(page))
             bits = []
             if entry["filled"]:
-                bits.append("filled " + "+".join(entry["filled"]))
+                bits.append("заполнено: " + "+".join(entry["filled"]))
             if entry["picked"]:
-                bits.append(f"{len(entry['picked'])} choice(s)")
+                bits.append(f"выбрано: {len(entry['picked'])}")
             if entry["replayed"]:
-                bits.append(f"{entry['replayed']} learned step(s)")
+                bits.append(f"шагов рецепта: {entry['replayed']}")
             if entry["flags"]:
-                bits.append(f"{len(entry['flags'])} need your eye")
-            entry["status"] = ", ".join(bits) or "opened, nothing to autofill"
-            await recording(page, True)   # tab is yours from here; watch and learn
+                bits.append(f"проверить: {len(entry['flags'])}")
+            entry["status"] = ", ".join(bits) or "открыто, нечего автозаполнять"
+            await recording(page, True)
             if entry["captcha"]:
-                entry["status"] += " — CAPTCHA, you must submit"
+                entry["status"] += " — CAPTCHA, отправьте вручную"
             elif entry["can_autosubmit"]:
-                entry["status"] += " — ready to auto-submit"
+                entry["status"] += " — готово к отправке"
         except Exception as e:
-            entry["status"] = f"FAILED: {type(e).__name__}: {str(e)[:110]}"
+            entry["status"] = f"FAIL: {type(e).__name__}: {str(e)[:110]}"
     entry_cb(entry)
     return page, entry
 
 
-# Deliberately narrow. A loose pattern matched Symantec's boilerplate and claimed a
-# report was filed when none was - a false "submitted" poisons the evidence log, so a
-# phrase alone is never enough: the submit control must also be gone.
-DONE_RE = re.compile(r"thank you for (your |the )?(report|submission|feedback)|"
-                     r"(report|submission|request|url)[^.]{0,40}(has been|was) (received|submitted|sent)|"
-                     r"we have received your|successfully submitted|submission (was )?successful",
-                     re.I)
+# Строгий паттерн подтверждения: кроме текста проверяем исчезновение кнопки отправки.
+DONE_RE = re.compile(
+    r"thank you for (your |the )?(report|submission|feedback)|"
+    r"(report|submission|request|url)[^.]{0,40}(has been|was) (received|submitted|sent)|"
+    r"we have received your|successfully submitted|submission (was )?successful|"
+    r"спасибо за (обращение|жалобу|сообщение)|жалоба (успешно )?(принята|отправлена)",
+    re.I,
+)
 
 
 async def submit_one(page, entry, values):
-    """One click per press. Many vendors are two-stage (look up, THEN classify and
-    report), so if the click reveals a fresh form we fill that too and ask for
-    another press rather than blind-clicking through a flow we cannot see."""
+    """Один клик за нажатие. Для двухшаговых форм заполняет следующий шаг и ждёт нового нажатия."""
     if entry["captcha"]:
-        entry["status"] = "skipped — CAPTCHA needs you"
+        entry["status"] = "пропущено — требуется прохождение CAPTCHA"
         return entry
     try:
         await page.bring_to_front()
@@ -494,14 +573,14 @@ async def submit_one(page, entry, values):
         pass
     btn = await find_submit(page)
     if not btn:
-        entry["status"] = "skipped — no submit button found, do it by hand"
+        entry["status"] = "пропущено — кнопка отправки не найдена, завершите вручную"
         return entry
     before = page.url
     try:
         await recording(page, False)
         await btn.click(timeout=6000)
         await page.wait_for_timeout(4000)
-        await recording(page, False)   # navigation re-armed it; this is still our turn
+        await recording(page, False)
         body = ""
         try:
             body = (await page.inner_text("body"))[:2500]
@@ -513,55 +592,64 @@ async def submit_one(page, entry, values):
             await recording(page, True)
         if DONE_RE.search(body) and gone:
             entry["submitted"] = entry["verified"] = True
-            entry["status"] = f"SUBMITTED — confirmed by the site (stage {entry['stage']})"
+            entry["status"] = f"отправлено — confirmed сайтом (шаг {entry['stage']})"
             return entry
         if gone and page.url != before:
             entry["submitted"] = True
-            entry["status"] = "clicked, form closed and page moved — probably filed, verify in the tab"
+            entry["status"] = "нажато, форма закрылась — вероятно отправлено, проверьте вкладку"
             return entry
 
-        # No confirmation. Did a new stage of the form appear?
+        # Подтверждения нет — проверяем, появился ли следующий этап формы.
         entry["stage"] += 1
+        newly = await pick_threats(page, values)
         entry["filled"] = await fill_text(page, values) or entry["filled"]
-        newly = await pick_threats(page)
         entry["picked"] = list(dict.fromkeys(entry["picked"] + newly))
         entry["captcha"] = await has_captcha(page)
         entry["can_autosubmit"] = (not entry["captcha"]) and bool(await find_submit(page))
         await recording(page, True)
 
         if entry["can_autosubmit"] and (newly or page.url != before):
-            bits = f"stage {entry['stage']} ready"
+            bits = f"шаг {entry['stage']} готов"
             if newly:
-                bits += " — picked " + "; ".join(newly)
-            entry["status"] = bits + " — press Submit all again"
+                bits += " — выбрано: " + "; ".join(newly)
+            entry["status"] = bits + " — нажмите «Отправить все» ещё раз"
         elif entry["captcha"]:
-            entry["status"] = f"stage {entry['stage']} — CAPTCHA appeared, finish it yourself"
+            entry["status"] = f"шаг {entry['stage']} — появилась CAPTCHA, завершите вручную"
         else:
             entry["submitted"] = True
-            entry["status"] = ("clicked, page advanced but no confirmation — verify in the tab"
-                               if page.url != before else
-                               "clicked, nothing visibly changed — verify in the tab")
+            entry["status"] = (
+                "нажато, страница сменилась без подтверждения — проверьте вкладку"
+                if page.url != before
+                else "нажато, видимых изменений нет — проверьте вкладку"
+            )
     except Exception as e:
-        entry["status"] = f"submit failed: {type(e).__name__}: {str(e)[:80]}"
+        entry["status"] = f"FAIL при отправке: {type(e).__name__}: {str(e)[:80]}"
     return entry
 
 
 async def open_all(url, values, site_ids=None, headless=False,
                    stop_event=None, submit_event=None, on_result=None, learn=True):
+    if fs.is_legit_domain(url):
+        raise fs.OfficialDomainError(
+            f"Отказ: {url} — официальный домен «Золотого Яблока». Формы вендоров не открываются."
+        )
+
     from playwright.async_api import async_playwright
 
+    norm_values = prepare_values(values)
     chosen = [s for s in SITES if (s["id"] in site_ids if site_ids else not s.get("skip"))]
-    recorder_src = open(RECORDER_JS).read() if learn and os.path.exists(RECORDER_JS) else ""
+    recorder_src = ""
+    if learn and os.path.exists(RECORDER_JS):
+        with open(RECORDER_JS, "r", encoding="utf-8") as f:
+            recorder_src = f.read()
     os.makedirs(os.path.dirname(LOG_PATH), exist_ok=True)
     entries, pages = {}, {}
 
     def publish(e):
         entries[e["site"]] = e
-        # ponytail: append-on-change, not a bulk write at the end. A killed session
-        # used to lose every result it had already produced.
         try:
-            with open(LOG_PATH, "a") as f:
-                f.write(json.dumps(e) + "\n")
+            with open(LOG_PATH, "a", encoding="utf-8") as f:
+                f.write(json.dumps(e, ensure_ascii=False) + "\n")
         except Exception:
             pass
         if on_result:
@@ -575,8 +663,6 @@ async def open_all(url, values, site_ids=None, headless=False,
         try:
             ctx = await launch()
         except Exception:
-            # ponytail: a crashed run leaves Singleton* lock files that make the next
-            # launch fail with a useless "already in use". Clear them and try once more.
             for f in ("SingletonLock", "SingletonCookie", "SingletonSocket"):
                 try:
                     os.unlink(os.path.join(PROFILE_DIR, f))
@@ -585,7 +671,7 @@ async def open_all(url, values, site_ids=None, headless=False,
             ctx = await launch()
         sem = asyncio.Semaphore(MAX_PARALLEL)
         done = await asyncio.gather(*[
-            prepare(ctx, s, url, values, recorder_src, sem, publish) for s in chosen],
+            prepare(ctx, s, url, dict(norm_values), recorder_src, sem, publish) for s in chosen],
             return_exceptions=True)
         for res in done:
             if isinstance(res, tuple):
@@ -594,8 +680,8 @@ async def open_all(url, values, site_ids=None, headless=False,
                     pages[entry["site"]] = page
 
         ready = [e for e in entries.values() if e["can_autosubmit"]]
-        print(f"\n{len(entries)} tabs prepared in parallel. "
-              f"{len(ready)} can be auto-submitted, the rest need your hands.")
+        print(f"\nПодготовлено вкладок: {len(entries)}. "
+              f"Готовы к автоотправке: {len(ready)}, остальные требуют ручного участия.")
         for e in entries.values():
             print(f"  [{e['status'][:52]:<52}] {e['name']}")
 
@@ -606,7 +692,7 @@ async def open_all(url, values, site_ids=None, headless=False,
                     steps = await page.evaluate(HARVEST_JS)
                 except Exception:
                     continue
-                n = save_recipe(sid, steps, values)
+                n = save_recipe(sid, steps, norm_values)
                 if n and entries.get(sid, {}).get("learned") != n:
                     entries[sid]["learned"] = n
                     publish(entries[sid])
@@ -617,7 +703,7 @@ async def open_all(url, values, site_ids=None, headless=False,
             ticks = 0
             while not stop_event.is_set():
                 ticks += 1
-                if learn and ticks % 40 == 0:      # ~every 16s, so a kill loses little
+                if learn and ticks % 40 == 0:
                     await harvest()
                 if submit_event is not None and submit_event.is_set():
                     submit_event.clear()
@@ -625,13 +711,13 @@ async def open_all(url, values, site_ids=None, headless=False,
                         e = entries.get(sid)
                         if not e or e.get("submitted"):
                             continue
-                        publish(await submit_one(page, e, values))
+                        publish(await submit_one(page, e, dict(norm_values)))
                 await asyncio.sleep(0.4)
         else:
-            input("\nPress Enter to submit every CAPTCHA-free tab, or Ctrl-C to bail: ")
+            input("\nНажмите Enter, чтобы отправить вкладки без CAPTCHA, или Ctrl-C для выхода: ")
             for sid, page in list(pages.items()):
-                publish(await submit_one(page, entries[sid], values))
-            input("Finish the CAPTCHA tabs by hand, then press Enter to close: ")
+                publish(await submit_one(page, entries[sid], dict(norm_values)))
+            input("Завершите вкладки с CAPTCHA вручную, затем нажмите Enter для закрытия: ")
 
         if learn:
             await harvest()
@@ -647,69 +733,111 @@ def run(url, values, site_ids=None, headless=False, stop_event=None,
 
 
 def selftest():
+    # Классификация полей (английские и русские подписи)
     assert classify({"type": "text", "visible": True, "disabled": False, "filled": False,
                      "sig": "Enter the phishing URL", "i": 0}) == "url"
+    assert classify({"type": "text", "visible": True, "disabled": False, "filled": False,
+                     "sig": "Ссылка на мошеннический сайт", "i": 0}) == "url"
     assert classify({"type": "text", "visible": True, "disabled": False, "filled": True,
                      "sig": "url", "i": 0}) is None
     assert classify({"type": "text", "visible": True, "disabled": False, "filled": False,
                      "sig": "captcha code", "i": 0}) is None
-    # threat picking: phishing beats generic, negatives never win
+
+    # Выбор категории угрозы
     assert best_threat_option(["Select one", "Spam", "Phishing", "Malware"]) == 2
     assert best_threat_option(["Select", "This is NOT phishing", "Fraud"]) == 2
+    assert best_threat_option(["Выберите", "Фишинг", "Спам"]) == 1
     assert best_threat_option(["Blue", "Green"]) is None
     assert best_threat_option(["Select a category", "Malicious Site"]) == 1
+
+    # Выбор бренда в выпадающем списке: если нет «Золотого Яблока», выбирается «Другое» / Other
+    assert best_brand_option(["Select brand", "Apple", "PayPal", "Other"]) == (3, "other")
+    assert best_brand_option(["Выберите бренд", "Банк", "Другое"]) == (2, "other")
+    assert best_brand_option(["Select brand", "Gold Apple", "Other"]) == (1, "exact")
+    assert best_brand_option(["Select brand", "Золотое Яблоко", "Другое"]) == (1, "exact")
+    assert best_brand_option(["Option A", "Option B"]) == (None, None)
+
+    # Автоматическое добавление бренда в комментарий
+    c1 = ensure_brand_in_comment("Фейковый розыгрыш бьюти-бокса")
+    assert BRAND_LABEL in c1, c1
+    c2 = ensure_brand_in_comment(f"Фишинг {BRAND_LABEL}: кража карты")
+    assert c2.count("goldapple.ru") == 1, c2
+
+    # Проверка подтверждений отправки
     assert DONE_RE.search("Thank you for your submission")
     assert DONE_RE.search("Your report has been received")
+    assert DONE_RE.search("Спасибо за обращение! Жалоба успешно принята.")
     assert not DONE_RE.search("Please complete the form below")
     assert not DONE_RE.search("Terms of Service. Categories submitted by users are reviewed."), \
         "boilerplate containing 'submitted' must not read as a confirmation"
-    # --- cross-brand transfer: what is learned on Telegram must not misfire on WhatsApp
-    tg = {"url": "https://www.tegexyy.top/", "domain": "tegexyy.top", "brand": "telegram",
-          "email": "me@x.com", "name": "Reporter", "comment": "Phishing site."}
-    wa = {"url": "https://fake-wa.xyz/login", "domain": "fake-wa.xyz", "brand": "whatsapp",
-          "email": "me@x.com", "name": "Reporter", "comment": "Phishing site."}
 
-    assert tokenize("https://www.tegexyy.top/", tg) == "{{url}}"
-    got = tokenize("Fake Telegram login at tegexyy.top", tg)
-    assert got == "Fake {{brand}} login at {{domain}}", got
-    out = detokenize(got, wa)
-    assert out == "Fake whatsapp login at fake-wa.xyz", out
-    assert "telegram" not in out.lower() and "tegexyy" not in out.lower(), \
-        "last target's brand/domain leaked into the next report"
-    assert tokenize("x" * 130, tg) == "{{typed}}", "long unrecognised prose must not be stored raw"
-    assert tokenize("Credential harvesting", tg) == "Credential harvesting", \
-        "short generic answers stay usable"
+    # Перенос обучения между разными фишинговыми доменами под «Золотое Яблоко»
+    ga1 = prepare_values({
+        "url": "https://goldapple-prize.top/gift",
+        "domain": "goldapple-prize.top",
+        "brand": BRAND_LABEL,
+        "email": "drp@example.com",
+        "name": "Аналитик ЗЯ",
+        "comment": f"Фейковый розыгрыш {BRAND_LABEL}",
+    })
+    ga2 = prepare_values({
+        "url": "https://gold-apple-sale.shop/pay",
+        "domain": "gold-apple-sale.shop",
+        "brand": BRAND_LABEL,
+        "email": "drp@example.com",
+        "name": "Аналитик ЗЯ",
+        "comment": f"Фейковая распродажа {BRAND_LABEL}",
+    })
 
-    assert generalizes_as("Phishing", tg) == "threat"
-    assert generalizes_as("Telegram", tg) == "brand"
-    assert generalizes_as("tegexyy.top", tg) == "target"
-    assert generalizes_as("Financial services", tg) == "sticky"
-    assert generalizes_as("This is not phishing", tg) == "sticky", "negatives are never a threat pick"
+    assert tokenize("https://goldapple-prize.top/gift", ga1) == "{{url}}"
+    got = tokenize(f"Фишинг {BRAND_LABEL} на домене goldapple-prize.top", ga1)
+    assert got == "Фишинг {{brand}} на домене {{domain}}", got
+    out = detokenize(got, ga2)
+    assert out == f"Фишинг {BRAND_LABEL} на домене gold-apple-sale.shop", out
+    assert "goldapple-prize.top" not in out.lower(), "предыдущий фишинговый домен утёк в новую жалобу"
+    assert tokenize("x" * 130, ga1) == "{{typed}}"
+    assert tokenize("Credential harvesting", ga1) == "Credential harvesting"
+
+    assert generalizes_as("Phishing", ga1) == "threat"
+    assert generalizes_as(BRAND_LABEL, ga1) == "brand"
+    assert generalizes_as("goldapple-prize.top", ga1) == "target"
+    assert generalizes_as("Retail", ga1) == "sticky"
+    assert generalizes_as("This is not phishing", ga1) == "sticky"
 
     import tempfile
     global RECIPES_DIR
     keep = RECIPES_DIR
-    RECIPES_DIR = tempfile.mkdtemp()
+    tmp_dir = tempfile.mkdtemp()
+    RECIPES_DIR = tmp_dir
     try:
         save_recipe("t", [
-            {"act": "fill", "sel": "#u", "value": "https://www.tegexyy.top/"},
-            {"act": "fill", "sel": "#c", "value": "Fake Telegram login at tegexyy.top"},
+            {"act": "fill", "sel": "#u", "value": "https://goldapple-prize.top/gift"},
+            {"act": "fill", "sel": "#c", "value": f"Фишинг {BRAND_LABEL} на goldapple-prize.top"},
             {"act": "select", "sel": "#cat", "value": "ph", "text": "Phishing"},
-            {"act": "select", "sel": "#brand", "value": "tg", "text": "Telegram"},
+            {"act": "select", "sel": "#brand", "value": "other", "text": BRAND_LABEL},
             {"act": "check", "sel": "#r1", "checked": True, "text": "Credential phishing"},
-        ], tg)
+        ], ga1)
         steps = load_recipe("t")
         by = {x["sel"]: x for x in steps}
         assert by["#u"]["value"] == "{{url}}"
-        assert by["#c"]["value"] == "Fake {{brand}} login at {{domain}}"
-        assert by["#cat"]["gen"] == "threat",  "threat category must replay verbatim"
-        assert by["#brand"]["gen"] == "brand", "brand dropdown must be re-picked, not replayed"
+        assert by["#c"]["value"] == "Фишинг {{brand}} на {{domain}}"
+        assert by["#cat"]["gen"] == "threat"
+        assert by["#brand"]["gen"] == "brand"
         assert by["#r1"]["gen"] == "threat"
-        blob = json.dumps(steps).lower()
-        assert "telegram" not in blob and "tegexyy" not in blob, \
-            "recipe still hard-codes the brand/domain it was learned on: " + blob
+        blob = json.dumps(steps, ensure_ascii=False).lower()
+        assert "goldapple-prize.top" not in blob, "домен цели не должен хардкодиться в рецепте: " + blob
     finally:
         RECIPES_DIR = keep
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    # Блокировка официального домена при попытке открыть формы
+    blocked = False
+    try:
+        run("https://shop.goldapple.ru/catalog", ga1)
+    except fs.OfficialDomainError:
+        blocked = True
+    assert blocked, "automate.run должен блокировать официальные домены «Золотого Яблока»"
+
     assert expand("https://x/?u={qurl}&d={domain}", "https://www.bad.top/a?b=1") == \
         "https://x/?u=https%3A%2F%2Fwww.bad.top%2Fa%3Fb%3D1&d=www.bad.top"
     print("automate selftest OK")
