@@ -16,13 +16,21 @@
   "ct": "off",
   "ct_minutes": "60",
   "country": "",
-  "ct_keywords": "telegram, whatsapp",
+  "ct_keywords": "goldapple, gold-apple",
   "identities": [
     {
       "email": "you+abuse@example.com",
       "name": "A concerned internet user",
       "gmail_index": ""
     }
+  ],
+  "legit_domains": [
+    "goldapple.ru",
+    "goldapple.kz",
+    "goldapple.by",
+    "goldapple.sa",
+    "goldapple.qa",
+    "goldapple.ae"
   ],
   "active": 0
 }

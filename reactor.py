@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""reactor - one-shot phishing URL abuse reporter.
+"""reactor - инструмент подачи жалоб на фишинговые ресурсы («Золотое Яблоко»).
 
-Paste a phishing URL, it does recon (RDAP/DNS), submits to every abuse API it
-can reach, writes ready-to-send .eml complaints for the ones that are email-only,
-and prints the human-only web forms with the URL pre-filled.
+Принимает фишинговую ссылку, собирает данные о домене (RDAP/DNS), отправляет
+ссылку в API блок-листов, готовит .eml-жалобы для регистратора/хостера и
+формирует список веб-форм вендоров с предзаполнением.
 
 Stdlib only. No pip install.
 
@@ -11,12 +11,6 @@ Usage:
     python3 reactor.py https://www.example.top/          # dry run, recon only
     python3 reactor.py https://www.example.top/ --send   # actually report
     python3 reactor.py --selftest
-
-Env (all optional, unlocks more targets):
-    REPORTER_EMAIL   your email - required by Netcraft + used as From: in .eml
-    URLSCAN_API_KEY  urlscan.io (free key)
-    VT_API_KEY       VirusTotal (free key)
-    SMTP_HOST SMTP_PORT SMTP_USER SMTP_PASS   send the .eml complaints for real
 """
 import argparse
 import json
@@ -37,28 +31,91 @@ from email.message import EmailMessage
 UA = "Mozilla/5.0 (compatible; abuse-reporter/1.0)"
 TIMEOUT = 25
 
-# Brand keyword -> that brand's own abuse mailbox. Impersonated brands want to know.
-BRAND_ABUSE = {
-    "telegram": "abuse@telegram.org",
-    "whatsapp": "abuse@support.whatsapp.com",
-    "binance": "phishing@binance.com",
-    "coinbase": "security@coinbase.com",
-    "paypal": "phishing@paypal.com",
-    "apple": "reportphishing@apple.com",
-    "microsoft": "phish@office365.microsoft.com",
-    "amazon": "stop-spoofing@amazon.com",
-    "google": "phishing-report@google.com",
-    "netflix": "phishing@netflix.com",
-    "meta": "phish@fb.com",
-    "facebook": "phish@fb.com",
-    "instagram": "phish@fb.com",
-}
+TARGET_BRAND = "goldapple"
+TARGET_BRAND_LABEL = "Золотое Яблоко (goldapple.ru)"
+
+DEFAULT_LEGIT_DOMAINS = (
+    "goldapple.ru",
+    "goldapple.kz",
+    "goldapple.by",
+    "goldapple.sa",
+    "goldapple.qa",
+    "goldapple.ae",
+)
+
+BRAND_MARKERS = (
+    "goldapple",
+    "gold-apple",
+    "gold_apple",
+    "gold apple",
+    "золотое яблоко",
+    "золотого яблока",
+    "золотому яблоку",
+    "золотым яблоком",
+    "золотом яблоке",
+    "goldaple",
+    "g0ldapple",
+)
+
+# Чужие бренды удалены; копия службе безопасности бренда не отправляется.
+BRAND_ABUSE = {}
 
 # Always-on email clearinghouses.
 CLEARINGHOUSES = [
     ("APWG", "reportphishing@apwg.org"),
     ("Netcraft (email fallback)", "scam@netcraft.com"),
 ]
+
+_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
+
+
+class OfficialDomainError(ValueError):
+    """Исключение при попытке пожаловаться на официальный домен «Золотого Яблока»."""
+
+
+def load_legit_domains(config_path=None):
+    """Читает список официальных доменов из config.json, с откатом на DEFAULT_LEGIT_DOMAINS."""
+    path = config_path or _CONFIG_PATH
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            cfg = json.load(f)
+        doms = cfg.get("legit_domains")
+        if isinstance(doms, list) and doms:
+            cleaned = [str(d).strip().lower().rstrip(".") for d in doms if str(d).strip()]
+            if cleaned:
+                return tuple(cleaned)
+    except Exception:
+        pass
+    return DEFAULT_LEGIT_DOMAINS
+
+
+def is_legit_domain(url, legit_domains=None):
+    """Точная проверка официального домена или его поддомена.
+
+    goldapple.ru и shop.goldapple.ru -> True (запрещено жаловаться).
+    goldapple.ru.fake-site.top -> False (разрешено).
+    """
+    domains = legit_domains if legit_domains is not None else load_legit_domains()
+    raw = (url or "").strip()
+    if not raw:
+        return False
+    parsed = urllib.parse.urlparse(raw if "://" in raw else f"https://{raw}")
+    host = (parsed.hostname or "").lower().rstrip(".")
+    if not host:
+        return False
+    for domain in domains:
+        d = (domain or "").strip().lower().rstrip(".")
+        if not d:
+            continue
+        if host == d or host.endswith("." + d):
+            return True
+    return False
+
+
+def looks_like_goldapple(text="", url=""):
+    """Проверяет, есть ли в ссылке или тексте упоминание «Золотого Яблока»."""
+    hay = f"{text or ''} {url or ''}".lower()
+    return any(marker in hay for marker in BRAND_MARKERS)
 
 
 # ---------------------------------------------------------------- http helpers
@@ -158,8 +215,6 @@ def rdap_emails(obj):
                 walk(v, in_abuse)
 
     walk(obj, False)
-    # ponytail: if RDAP labelled anything abuse-role, trust only those - the rest
-    # is noc@/rir@/registrant noise that gets your mail ignored.
     abuse_first = [e for a, e in found if a] or [e for _, e in found]
     seen, out = set(), []
     for e in abuse_first:
@@ -173,16 +228,32 @@ def recon(url):
     p = urllib.parse.urlparse(url)
     host = p.hostname or ""
     dom = registrable_domain(host)
-    info = {"url": url, "host": host, "domain": dom, "ips": [], "registrar": None,
-            "registrar_abuse": [], "created": None, "ns": [], "ip_abuse": [],
-            "network": None, "cloudflare": False, "brand": None}
+    info = {
+        "url": url,
+        "host": host,
+        "domain": dom,
+        "ips": [],
+        "registrar": None,
+        "registrar_abuse": [],
+        "created": None,
+        "ns": [],
+        "ip_abuse": [],
+        "network": None,
+        "cloudflare": False,
+        "brand": TARGET_BRAND,
+        "brand_label": TARGET_BRAND_LABEL,
+        "is_legit": is_legit_domain(url),
+        "brand_match": looks_like_goldapple("", url),
+    }
 
     try:
         info["ips"] = sorted({ai[4][0] for ai in socket.getaddrinfo(host, None)})
     except Exception:
         pass
 
-    d = jget(f"https://rdap.org/domain/{dom}") or jget(f"https://rdap.zdnsgtld.com/{dom.rsplit('.',1)[-1]}/domain/{dom}")
+    d = jget(f"https://rdap.org/domain/{dom}") or jget(
+        f"https://rdap.zdnsgtld.com/{dom.rsplit('.', 1)[-1]}/domain/{dom}"
+    )
     if d:
         info["registrar_abuse"] = rdap_emails(d)
         for ent in d.get("entities", []):
@@ -216,23 +287,22 @@ def recon(url):
 
 
 def guess_brand(info):
-    forced = (info.get("brand") or "").lower()
-    if forced:
-        return forced, BRAND_ABUSE.get(forced, "")
-    hay = (info["url"] + " " + info["host"]).lower()
-    for k, mail in BRAND_ABUSE.items():
-        if k in hay:
-            return k, mail
-    return None, None
+    """Единственный бренд проекта — «Золотое Яблоко». Копия на бренд не отправляется."""
+    return TARGET_BRAND, ""
 
 
 # ------------------------------------------------------------------ API submits
 
 def submit_netcraft(url, reporter):
+    if is_legit_domain(url):
+        return "BLOCKED", "Официальный домен «Золотого Яблока» — отправка жалобы запрещена"
     if not reporter:
         return "SKIP", "set REPORTER_EMAIL"
-    payload = {"email": reporter, "urls": [{"url": url, "country": "US"}],
-               "reason": "Phishing site impersonating a brand login page."}
+    payload = {
+        "email": reporter,
+        "urls": [{"url": url, "country": "RU"}],
+        "reason": f"Phishing site impersonating {TARGET_BRAND_LABEL}.",
+    }
     for attempt in (1, 2):   # their API 400s intermittently on a first, valid POST
         st, body = http("https://report.netcraft.com/api/v3/report/urls", data=payload)
         if st in (200, 201):
@@ -244,23 +314,35 @@ def submit_netcraft(url, reporter):
 
 
 def submit_urlscan(url):
+    if is_legit_domain(url):
+        return "BLOCKED", "Официальный домен «Золотого Яблока» — отправка жалобы запрещена"
     key = os.getenv("URLSCAN_API_KEY")
     if not key:
         return "SKIP", "set URLSCAN_API_KEY (free at urlscan.io/user/signup)"
-    st, body = http("https://urlscan.io/api/v1/scan/", data={"url": url, "visibility": "public",
-                                                            "tags": ["phishing"]},
-                    headers={"API-Key": key})
+    st, body = http(
+        "https://urlscan.io/api/v1/scan/",
+        data={"url": url, "visibility": "public", "tags": ["phishing"]},
+        headers={"API-Key": key},
+    )
     return ("OK" if st == 200 else f"HTTP {st}"), body[:300]
 
 
 def submit_virustotal(url):
+    if is_legit_domain(url):
+        return "BLOCKED", "Официальный домен «Золотого Яблока» — отправка жалобы запрещена"
     key = os.getenv("VT_API_KEY")
     if not key:
         return "SKIP", "set VT_API_KEY (free at virustotal.com)"
     data = urllib.parse.urlencode({"url": url}).encode()
-    req = urllib.request.Request("https://www.virustotal.com/api/v3/urls", data=data,
-                                 headers={"x-apikey": key, "User-Agent": UA,
-                                          "Content-Type": "application/x-www-form-urlencoded"})
+    req = urllib.request.Request(
+        "https://www.virustotal.com/api/v3/urls",
+        data=data,
+        headers={
+            "x-apikey": key,
+            "User-Agent": UA,
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+    )
     try:
         with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
             return "OK", r.read().decode()[:300]
@@ -279,12 +361,20 @@ API_TARGETS = [
 
 # ------------------------------------------------------------------- email side
 
-def complaint_body(info, recipient_label):
-    b = guess_brand(info)[0]
-    brand = f" impersonating {b.title()}" if b else ""
+def complaint_body(info, recipient_label, detail=""):
+    """Письмо зарубежному регистратору/хостеру остаётся на английском языке."""
+    extra = (detail or info.get("detail") or "").strip()
+    description_block = (
+        extra
+        if extra
+        else (
+            f"The site is designed to deceive users and harvest credentials or "
+            f"payment data from victims who believe they are using {TARGET_BRAND_LABEL}."
+        )
+    )
     return f"""To whom it may concern ({recipient_label}),
 
-I am reporting an active phishing website{brand} for immediate takedown.
+I am reporting an active phishing website impersonating {TARGET_BRAND_LABEL} for immediate takedown.
 
   Phishing URL : {info['url']}
   Domain       : {info['domain']}
@@ -295,16 +385,16 @@ I am reporting an active phishing website{brand} for immediate takedown.
   Network      : {info['network'] or 'n/a'}
   Reported at  : {datetime.now(timezone.utc).isoformat()}
 
-The site is designed to harvest credentials from victims who believe they are
-using a legitimate service. This violates your acceptable use policy and, for
-the registrar, the ICANN RAA 2013 Section 3.18 obligation to investigate and
-respond to reports of abuse.
+{description_block}
+
+This violates your acceptable use policy and, for the registrar, the ICANN RAA 2013
+Section 3.18 obligation to investigate and respond to reports of abuse.
 
 Please suspend the domain / disable the hosting account and confirm the action
 taken. I am available for any further evidence you require.
 
 Regards,
-{os.getenv('REPORTER_NAME', 'A concerned internet user')}
+{os.getenv('REPORTER_NAME', 'Gold Apple Digital Risk Protection')}
 """
 
 
@@ -317,14 +407,7 @@ def base_mailbox(addr):
 
 def compose_links(to, subject, body, reporter="", gmail_index=None):
     """Hand-off links so you can send from your own mail client instead of letting
-    this tool touch SMTP. mailto: is fully local - nothing leaves the machine until
-    you press Send in your own app.
-
-    The Gmail link picks the sending account by ADDRESS (`authuser=`), not by the
-    /u/N/ slot. A slot is a position in one browser's session list: if that position
-    is empty Gmail silently drops you back to /u/0/ and sends from the wrong account.
-    An address cannot be wrong. gmail_index stays available as an override for anyone
-    who wants to pin the path, but it is not needed and defaults to off."""
+    this tool touch SMTP."""
     q = urllib.parse.urlencode({"subject": subject, "body": body}, quote_via=urllib.parse.quote)
     gp = {"view": "cm", "fs": "1", "to": to, "su": subject, "body": body}
     who = base_mailbox(reporter)
@@ -332,12 +415,19 @@ def compose_links(to, subject, body, reporter="", gmail_index=None):
         gp["authuser"] = who
     gq = urllib.parse.urlencode(gp, quote_via=urllib.parse.quote)
     path = f"u/{int(gmail_index)}/" if gmail_index not in (None, "", -1) else ""
-    return {"mailto": f"mailto:{urllib.parse.quote(to)}?{q}",
-            "gmail": f"https://mail.google.com/mail/{path}?{gq}"}
+    return {
+        "mailto": f"mailto:{urllib.parse.quote(to)}?{q}",
+        "gmail": f"https://mail.google.com/mail/{path}?{gq}",
+    }
 
 
-def build_emls(info, outdir):
-    """Write one .eml per recipient. Returns list of (path, to_addr, label)."""
+def build_emls(info, outdir, legit_domains=None):
+    """Write one .eml per recipient. Returns list of (path, to_addr, label, subject, body)."""
+    if is_legit_domain(info.get("url") or info.get("host") or "", legit_domains):
+        raise OfficialDomainError(
+            f"Отказ: {info.get('url') or info.get('host')} — официальный домен «Золотого Яблока»."
+        )
+
     os.makedirs(outdir, exist_ok=True)
     reporter = os.getenv("REPORTER_EMAIL", "")
     targets = []
@@ -345,14 +435,8 @@ def build_emls(info, outdir):
         targets.append((e, f"registrar {info['registrar'] or ''}".strip()))
     for e in info["ip_abuse"]:
         targets.append((e, f"network {info['network'] or ''}".strip()))
-    bk, bmail = guess_brand(info)
-    if bmail:
-        targets.append((bmail, f"{bk} brand protection"))
-    elif bk:
-        print(f"  (no known abuse mailbox for brand '{bk}' - add one to BRAND_ABUSE)")
+    # Копия службе безопасности бренда отключена по ТЗ.
     targets += [(m, lbl) for lbl, m in CLEARINGHOUSES]
-    # your own country's CERT, which can lean on the host and registrar in ways
-    # an individual reporter cannot
     targets += channels.emails(os.getenv("REPORTER_COUNTRY", ""))
 
     seen, out = set(), []
@@ -361,7 +445,7 @@ def build_emls(info, outdir):
             continue
         seen.add(addr.lower())
         m = EmailMessage()
-        m["Subject"] = f"Phishing site takedown request: {info['domain']}"
+        m["Subject"] = f"Phishing site takedown request ({TARGET_BRAND_LABEL}): {info['domain']}"
         m["To"] = addr
         if reporter:
             m["From"] = reporter
@@ -407,9 +491,9 @@ def manual_forms(info):
         ("APWG eCrime portal", "https://apwg.org/reportphishing/"),
     ]
     if info["cloudflare"]:
-        forms.insert(0, ("Cloudflare abuse (phishing) - REQUIRED, they front this site",
+        forms.insert(0, ("Cloudflare abuse (phishing) — обязательно, сайт за Cloudflare",
                          "https://abuse.cloudflare.com/phishing"))
-    forms.append(("ICANN complaint - ONLY after registrar ignores you 24h+",
+    forms.append(("Жалоба в ICANN — только если регистратор игнорирует обращение более 24 ч.",
                   "https://forms.icann.org/en/resources/compliance/complaints/registrars/abuse-report-form"))
     return forms
 
@@ -417,36 +501,43 @@ def manual_forms(info):
 # --------------------------------------------------------------------- output
 
 def run(url, send, outdir, brand=None):
-    print(f"\n=== RECON  {url} ===")
+    if is_legit_domain(url):
+        print(f"\n[ЗАБЛОКИРОВАНО] {url} — официальный домен «Золотого Яблока». Подача жалобы отменена.")
+        return {"url": url, "blocked": True, "is_legit": True, "brand": TARGET_BRAND}
+
+    if not looks_like_goldapple("", url):
+        print(f"\n[ПРЕДУПРЕЖДЕНИЕ] Ссылка {url} не содержит признаков «Золотого Яблока». Проверьте перед отправкой.")
+
+    print(f"\n=== РАЗВЕДКА  {url} ===")
     info = recon(url)
-    info["brand"] = brand
+    info["brand"] = TARGET_BRAND
     for k in ("domain", "ips", "registrar", "created", "ns", "network"):
         print(f"  {k:<10}: {info[k]}")
     print(f"  {'abuse':<10}: registrar={info['registrar_abuse']} network={info['ip_abuse']}")
     if info["created"] and info["created"][:4] >= "2024":
-        print("  NOTE      : freshly registered domain - strong phishing signal, say so in reports")
+        print("  ПРИМЕЧАНИЕ: свежезарегистрированный домен — сильный признак фишинга")
 
-    print("\n=== API SUBMISSIONS ===")
+    print("\n=== ОТПРАВКА В API ===")
     reporter = os.getenv("REPORTER_EMAIL")
     for name, fn, needs_email in API_TARGETS:
         if not send:
-            print(f"  [dry-run] {name}")
+            print(f"  [тестовый запуск] {name}")
             continue
         status, detail = fn(url, reporter) if needs_email else fn(url)
         print(f"  {name:<14} {status:<10} {detail[:120]}")
 
-    print("\n=== EMAIL COMPLAINTS ===")
+    print("\n=== ПИСЬМА ЖАЛОБ ===")
     emls = build_emls(info, outdir)
-    for path, addr, label in emls:
+    for path, addr, label, *_ in emls:
         print(f"  {addr:<38} ({label})  -> {path}")
     if send and os.getenv("SMTP_HOST"):
-        print("  sending via SMTP...")
+        print("  отправка через SMTP...")
         for addr, res in smtp_send(emls) or []:
             print(f"    {addr:<38} {res}")
     elif send:
-        print("  SMTP_HOST not set - .eml files written, open them in your mail client to send")
+        print("  SMTP_HOST не задан — сформированы .eml файлы, откройте их в почтовом клиенте")
 
-    print("\n=== MANUAL FORMS (CAPTCHA / human-only, open these) ===")
+    print("\n=== ФОРМЫ ВЕНДОРОВ (CAPTCHA / ручная отправка) ===")
     for name, link in manual_forms(info):
         print(f"  {name}\n    {link}")
     print()
@@ -456,15 +547,18 @@ def run(url, send, outdir, brand=None):
 # -------------------------------------------------------------------- selftest
 
 def selftest():
+    import tempfile
+
     assert registrable_domain("www.tegexyy.top") == "tegexyy.top"
     assert registrable_domain("a.b.c.co.uk") == "c.co.uk"
     assert registrable_domain("example.com") == "example.com"
-    # a hosting platform's own domain must never become the report target
+    # домен хостинг-платформы не должен становиться целью жалобы
     assert registrable_domain("evil-login.pages.dev") == "evil-login.pages.dev"
     assert registrable_domain("x.y.scam.workers.dev") == "scam.workers.dev"
     assert registrable_domain("phish.github.io") == "phish.github.io"
     assert platform_suffix("scam.workers.dev") == "workers.dev"
     assert platform_suffix("tegexyy.top") is None
+
     fake = {"entities": [
         {"roles": ["registrar"], "entities": [
             {"roles": ["abuse"], "vcardArray": ["vcard", [["email", {}, "text", "abuse@reg.test"]]]}]},
@@ -474,45 +568,108 @@ def selftest():
     noisy = {"entities": [{"roles": ["technical"], "vcardArray": ["vcard", [["email", {}, "text", "noc@net.test"]]]},
                           {"roles": ["abuse"], "vcardArray": ["vcard", [["email", {}, "text", "abuse@net.test"]]]}]}
     assert rdap_emails(noisy) == ["abuse@net.test"], rdap_emails(noisy)
-    assert guess_brand({"url": "https://x.top/", "host": "x.top", "brand": "telegram"}) == ("telegram", "abuse@telegram.org")
+
+    # Чужих брендов в BRAND_ABUSE нет, бренд всегда «Золотое Яблоко», копия бренду не шлётся
+    assert BRAND_ABUSE == {}
+    assert guess_brand({"url": "https://x.top/", "host": "x.top", "brand": "telegram"}) == ("goldapple", "")
+
+    # Официальные домены и их поддомены блокируются, мимикрия — нет
+    for legit_url in (
+        "https://goldapple.ru",
+        "https://shop.goldapple.ru/catalog",
+        "https://goldapple.kz/promo",
+        "https://m.goldapple.by/",
+        "https://goldapple.sa",
+        "https://goldapple.qa",
+        "https://goldapple.ae",
+    ):
+        assert is_legit_domain(legit_url) is True, legit_url
+
+    for phish_url in (
+        "https://goldapple.ru.fake-site.top/login",
+        "https://gold-apple-sale.shop/",
+        "https://mygoldapple.ru/",
+    ):
+        assert is_legit_domain(phish_url) is False, phish_url
+
+    assert submit_netcraft("https://shop.goldapple.ru/", "a@b.test")[0] == "BLOCKED"
+    assert submit_urlscan("https://goldapple.kz/")[0] == "BLOCKED"
+    assert submit_virustotal("https://goldapple.by/")[0] == "BLOCKED"
+
+    # Проверка каналов по стране и Cloudflare
     os.environ["REPORTER_COUNTRY"] = "MY"
     my_forms = [u for _, u in manual_forms({"url": "https://x.top/", "cloudflare": False})]
     assert "https://aduan.mcmc.gov.my/" in my_forms, "country channels must lead the list"
     os.environ["REPORTER_COUNTRY"] = ""
     assert "https://aduan.mcmc.gov.my/" not in [
-        u for _, u in manual_forms({"url": "https://x.top/", "cloudflare": False})]
-    info = {"url": "https://x.top/telegram-login", "host": "x.top", "domain": "x.top",
-            "ips": [], "ns": [], "registrar": None, "created": None, "network": None,
-            "registrar_abuse": [], "ip_abuse": [], "cloudflare": True, "brand": None}
-    assert guess_brand(info) == ("telegram", "abuse@telegram.org")
+        u for _, u in manual_forms({"url": "https://x.top/", "cloudflare": False})
+    ]
+
+    info = {
+        "url": "https://goldapple.ru.fake-site.top/promo",
+        "host": "goldapple.ru.fake-site.top",
+        "domain": "fake-site.top",
+        "ips": [],
+        "ns": [],
+        "registrar": None,
+        "created": None,
+        "network": None,
+        "registrar_abuse": ["abuse@reg.test"],
+        "ip_abuse": [],
+        "cloudflare": True,
+        "brand": None,
+    }
+    assert guess_brand(info) == ("goldapple", "")
     assert "abuse.cloudflare.com" in manual_forms(info)[0][1]
-    assert "x.top" in complaint_body(info, "registrar")
+    body = complaint_body(info, "registrar")
+    assert "fake-site.top" in body
+    assert TARGET_BRAND_LABEL in body
+
+    # build_emls не должен включать почту бренда и должен отказывать для официального домена
+    with tempfile.TemporaryDirectory() as tmp:
+        emls = build_emls(info, tmp)
+        addrs = [addr for _, addr, *_ in emls]
+        assert "abuse@reg.test" in addrs
+        assert not any("goldapple" in a.lower() for a in addrs)
+
+        legit_info = dict(info, url="https://goldapple.ru/sale", host="goldapple.ru", domain="goldapple.ru")
+        blocked = False
+        try:
+            build_emls(legit_info, tmp)
+        except OfficialDomainError:
+            blocked = True
+        assert blocked, "build_emls must reject official Gold Apple domains"
+
     print("selftest OK")
 
 
 if __name__ == "__main__":
-    ap = argparse.ArgumentParser(description="Report a phishing URL everywhere at once.")
-    ap.add_argument("url", nargs="?", help="the phishing URL")
-    ap.add_argument("--send", action="store_true", help="actually submit (default is dry run)")
-    ap.add_argument("--out", default="reports", help="directory for .eml complaint drafts")
-    ap.add_argument("--brand", help="impersonated brand, e.g. telegram - CCs their abuse desk")
-    ap.add_argument("--compose", action="store_true",
-                    help="open every complaint as a prefilled draft in your own mail app "
-                         "(sends nothing - you press Send yourself)")
+    ap = argparse.ArgumentParser(description="Подача жалоб на фишинговые ресурсы «Золотого Яблока».")
+    ap.add_argument("url", nargs="?", help="фишинговая ссылка")
+    ap.add_argument("--send", action="store_true", help="реально отправить жалобы (по умолчанию тестовый запуск)")
+    ap.add_argument("--out", default="reports", help="папка для черновиков .eml")
+    ap.add_argument("--brand", help="игнорируется — цель всегда «Золотое Яблоко»")
+    ap.add_argument(
+        "--compose",
+        action="store_true",
+        help="открыть черновики писем в локальной почтовой программе (ничего не отправляет)",
+    )
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args()
     if a.selftest:
         selftest()
         sys.exit(0)
     if not a.url:
-        ap.error("give a URL, or --selftest")
+        ap.error("укажите URL или --selftest")
+    if is_legit_domain(a.url):
+        print(f"[ЗАБЛОКИРОВАНО] {a.url} — официальный домен «Золотого Яблока».")
+        sys.exit(1)
     out = os.path.join(a.out, urllib.parse.urlparse(a.url).hostname or "target")
-    info = run(a.url, a.send, out, a.brand)
+    info = run(a.url, a.send, out, TARGET_BRAND)
     if a.compose:
         import subprocess
-        info["brand"] = a.brand
+        info["brand"] = TARGET_BRAND
         drafts = build_emls(info, out)
         for _path, addr, _label, subj, body in drafts:
             subprocess.Popen(["open", compose_links(addr, subj, body)["mailto"]])
-        print(f"Opened {len(drafts)} prefilled drafts in your mail app. "
-              f"Read each one and press Send yourself — this tool sent nothing.")
+        print(f"Открыто черновиков: {len(drafts)}. Проверьте письма и отправьте вручную.")
