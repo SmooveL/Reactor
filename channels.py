@@ -1,53 +1,76 @@
-"""National reporting channels.
+"""Национальные каналы подачи жалоб по странам.
 
-Country-specific, because who you tell about a phishing site depends on where you
-are. Each entry records how it was checked, so a dead link is visible rather than
-silently useless - government portals move often.
+В каждой записи фиксируется способ проверки (verified), чтобы нерабочие
+ссылки не оставались в списке незаметно.
 
 kind:
-  email   - added to the complaint drafts automatically
-  form    - a web form you fill in; shown as a link with the URL to hand it
-  hotline - a phone number; shown, never dialled
+  email   - адрес автоматически добавляется в черновики писем
+  form    - веб-форма; показывается как ссылка для заполнения
+  hotline - телефон горячей линии; только для показа
 """
 CHANNELS = {
     "MY": {
-        "name": "Malaysia",
+        "name": "Малайзия",
         "entries": [
-            dict(id="mycert", kind="form", org="MyCERT Cyber999 (CyberSecurity Malaysia)",
-                 target="https://www.mycert.org.my/cyber999",
-                 when="always — this is the national CERT and it coordinates takedowns",
-                 note="The technical channel. They contact the host and registrar on your "
-                      "behalf and have standing with them that an individual does not.",
-                 verified="HTTP 200"),
-            dict(id="mycert_mail", kind="email", org="MyCERT Cyber999", target="cyber999@cybersecurity.my",
-                 when="always — same team as the form, by email",
-                 note="Mail domain confirmed to accept mail; the mailbox name itself is "
-                      "Cyber999's long-published address but was not readable on their page. "
-                      "If it bounces, use the form instead.",
-                 verified="MX present for cybersecurity.my"),
-            dict(id="mcmc", kind="form", org="MCMC (Malaysian Communications and Multimedia Commission)",
-                 target="https://aduan.mcmc.gov.my/",
-                 when="always for a phishing site, and for the spoofed SMS itself",
-                 note="The regulator. They handle site blocking within Malaysia and are the "
-                      "right channel for the SMS spoofing, which no registrar will act on.",
-                 verified="HTTP 200 (aduan.skmm.gov.my redirects here)"),
-            dict(id="semakmule", kind="form", org="PDRM Semak Mule",
-                 target="https://semakmule.rmp.gov.my/",
-                 when="when the scam gave you a bank account or phone number",
-                 note="Police database of mule accounts and numbers. Check the account or "
-                      "number, and report it if it is not already listed.",
-                 verified="HTTP 200"),
-            dict(id="nsrc", kind="hotline", org="National Scam Response Centre",
-                 target="997",
-                 when="ONLY if money has actually been transferred — call immediately",
-                 note="Funds can sometimes be frozen if you call within the first hours. "
-                      "Nothing else in this tool is urgent in that way.",
-                 verified="hotline, not checkable from here"),
-            dict(id="cyber999_phone", kind="hotline", org="Cyber999 hotline",
-                 target="1-300-88-2999",
-                 when="if you want to talk it through rather than fill a form",
-                 note="Published on the Cyber999 page.",
-                 verified="read from mycert.org.my/cyber999"),
+            dict(
+                id="mycert",
+                kind="form",
+                org="MyCERT Cyber999 (CyberSecurity Malaysia)",
+                target="https://www.mycert.org.my/cyber999",
+                when="всегда — национальный CERT, координирует блокировки",
+                note="Технический канал. Они обращаются к хостеру и регистратору от вашего "
+                     "имени и имеют больший вес, чем обычное частное лицо.",
+                verified="HTTP 200",
+            ),
+            dict(
+                id="mycert_mail",
+                kind="email",
+                org="MyCERT Cyber999",
+                target="cyber999@cybersecurity.my",
+                when="всегда — та же команда, что и в форме, но по e-mail",
+                note="Почтовый домен принимает письма; адрес Cyber999 публиковался ранее, "
+                     "но на странице напрямую не указан. Если письмо вернётся — используйте форму.",
+                verified="MX присутствует для cybersecurity.my",
+            ),
+            dict(
+                id="mcmc",
+                kind="form",
+                org="MCMC (Malaysian Communications and Multimedia Commission)",
+                target="https://aduan.mcmc.gov.my/",
+                when="всегда для фишинговых сайтов и поддельных SMS",
+                note="Регулятор. Занимается блокировкой сайтов в Малайзии и жалобами "
+                     "на подмену SMS, с которыми регистраторы доменов не работают.",
+                verified="HTTP 200 (редирект с aduan.skmm.gov.my)",
+            ),
+            dict(
+                id="semakmule",
+                kind="form",
+                org="PDRM Semak Mule",
+                target="https://semakmule.rmp.gov.my/",
+                when="если мошенники указали банковский счёт или номер телефона",
+                note="Полицейская база счетов и номеров дропов. Проверьте счёт или номер "
+                     "и отправьте жалобу, если их ещё нет в базе.",
+                verified="HTTP 200",
+            ),
+            dict(
+                id="nsrc",
+                kind="hotline",
+                org="National Scam Response Centre",
+                target="997",
+                when="ТОЛЬКО если деньги уже переведены — звонить немедленно",
+                note="В первые часы иногда удаётся заморозить средства. "
+                     "Остальные каналы не требуют такой срочности.",
+                verified="горячая линия, недоступна для автоматической проверки",
+            ),
+            dict(
+                id="cyber999_phone",
+                kind="hotline",
+                org="Cyber999 hotline",
+                target="1-300-88-2999",
+                when="если нужно обсудить инцидент голосом, а не заполнять форму",
+                note="Номер опубликован на странице mycert.org.my/cyber999.",
+                verified="взято с mycert.org.my/cyber999",
+            ),
         ],
     },
 }
@@ -62,7 +85,7 @@ def countries():
 
 
 def emails(code):
-    """(address, label) pairs to add to the complaint drafts."""
+    """Пары (address, label) для автоматического добавления в черновики писем."""
     c = get(code)
     if not c:
         return []
@@ -71,7 +94,7 @@ def emails(code):
 
 
 def forms(code):
-    """(label, url) pairs for the manual-forms list."""
+    """Пары (label, url) для списка ручных форм."""
     c = get(code)
     if not c:
         return []
@@ -85,25 +108,25 @@ def all_entries(code):
 
 
 def selftest():
-    assert get("my")["name"] == "Malaysia"
-    assert get("MY") is get("my"), "country code must be case-insensitive"
+    assert get("my")["name"] == "Малайзия"
+    assert get("MY") is get("my"), "код страны не должен зависеть от регистра"
     assert get("ZZ") is None and emails("ZZ") == [] and forms("ZZ") == []
 
     addrs = [a for a, _ in emails("MY")]
     assert "cyber999@cybersecurity.my" in addrs
-    # only email entries become drafts; forms and hotlines must never be mailed
+    # В почтовые черновики попадают только записи типа email
     assert all("@" in a for a in addrs)
     assert not any(t.startswith("http") or t.isdigit() for t in addrs)
 
     urls = [u for _, u in forms("MY")]
     assert "https://aduan.mcmc.gov.my/" in urls
     assert all(u.startswith("https://") for u in urls), urls
-    # the emergency channel must be a hotline, never something we auto-submit
+    # Экстренный канал — только горячая линия, без автоотправки
     nsrc = [e for e in all_entries("MY") if e["id"] == "nsrc"][0]
-    assert nsrc["kind"] == "hotline" and "ONLY if money" in nsrc["when"]
-    # every entry records how it was checked
+    assert nsrc["kind"] == "hotline" and "ТОЛЬКО если деньги" in nsrc["when"]
+    # У каждой записи заполнен способ проверки
     assert all(e.get("verified") for e in all_entries("MY"))
-    assert ("MY", "Malaysia") in countries()
+    assert ("MY", "Малайзия") in countries()
     print("channels selftest OK")
 
 

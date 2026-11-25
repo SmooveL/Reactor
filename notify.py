@@ -1,7 +1,7 @@
-"""Desktop notifications, so the monitor is useful while you are not looking at it.
+"""Уведомления на рабочем столе для фонового мониторинга.
 
-macOS only (osascript). Silently does nothing anywhere else - a missing notifier
-must never break a report run.
+Работает только на macOS (osascript). На остальных ОС тихо ничего не делает —
+отсутствие уведомлений никогда не должно ломать работу инструмента.
 """
 import json
 import os
@@ -12,31 +12,31 @@ import subprocess
 HERE = os.path.dirname(os.path.abspath(__file__))
 SEEN = os.path.join(HERE, "reports", ".notified.json")
 
-# Only these transitions are worth interrupting someone for.
+# Только эти переходы статусов достойны отдельного уведомления.
 WORTH_TELLING = {
-    ("live", "blocked"): "is now blocked — visitors get a warning",
-    ("live-flagged", "blocked"): "is now blocked — visitors get a warning",
-    ("unknown", "blocked"): "is now blocked — visitors get a warning",
-    ("live", "live-flagged"): "has been picked up by blocklists",
-    ("unknown", "live-flagged"): "has been picked up by blocklists",
-    ("live", "suspended"): "has been SUSPENDED by the registrar",
-    ("live-flagged", "suspended"): "has been SUSPENDED by the registrar",
-    ("blocked", "suspended"): "has been SUSPENDED by the registrar",
-    ("offline", "suspended"): "has been SUSPENDED by the registrar",
-    ("unknown", "suspended"): "has been SUSPENDED by the registrar",
-    ("live", "offline"): "stopped resolving — still registered, could return",
-    ("live-flagged", "offline"): "stopped resolving — still registered, could return",
-    ("blocked", "offline"): "stopped resolving — still registered, could return",
-    ("unknown", "offline"): "stopped resolving — still registered, could return",
-    ("offline", "live"): "is resolving again — they moved it to a new host",
-    ("offline", "blocked"): "is back, and blocked again",
-    ("blocked", "live"): "is live again — the warning is gone",
-    ("suspended", "live"): "is back up — the suspension was lifted",
+    ("live", "blocked"): "теперь заблокирован — браузеры показывают предупреждение",
+    ("live-flagged", "blocked"): "теперь заблокирован — браузеры показывают предупреждение",
+    ("unknown", "blocked"): "теперь заблокирован — браузеры показывают предупреждение",
+    ("live", "live-flagged"): "попал в блок-листы",
+    ("unknown", "live-flagged"): "попал в блок-листы",
+    ("live", "suspended"): "ПРИОСТАНОВЛЕН регистратором (suspended)",
+    ("live-flagged", "suspended"): "ПРИОСТАНОВЛЕН регистратором (suspended)",
+    ("blocked", "suspended"): "ПРИОСТАНОВЛЕН регистратором (suspended)",
+    ("offline", "suspended"): "ПРИОСТАНОВЛЕН регистратором (suspended)",
+    ("unknown", "suspended"): "ПРИОСТАНОВЛЕН регистратором (suspended)",
+    ("live", "offline"): "перестал резолвиться — домен ещё зарегистрирован и может вернуться",
+    ("live-flagged", "offline"): "перестал резолвиться — домен ещё зарегистрирован и может вернуться",
+    ("blocked", "offline"): "перестал резолвиться — домен ещё зарегистрирован и может вернуться",
+    ("unknown", "offline"): "перестал резолвиться — домен ещё зарегистрирован и может вернуться",
+    ("offline", "live"): "снова резолвится — сайт перенесли на новый хост",
+    ("offline", "blocked"): "снова доступен и снова заблокирован",
+    ("blocked", "live"): "снова активен — предупреждение о блокировке снято",
+    ("suspended", "live"): "снова работает — приостановка домена снята",
 }
 
 
 def _clean(s):
-    # osascript takes an AppleScript string; quotes and backslashes must not escape it
+    # osascript принимает строку AppleScript; кавычки и слэши не должны её ломать
     return re.sub(r'[\\"]', "", str(s))[:230]
 
 
@@ -56,18 +56,20 @@ def send(title, message, subtitle=""):
 
 def _load():
     try:
-        return json.load(open(SEEN))
+        with open(SEEN, "r", encoding="utf-8") as f:
+            return json.load(f)
     except Exception:
         return {}
 
 
 def _save(d):
     os.makedirs(os.path.dirname(SEEN), exist_ok=True)
-    json.dump(d, open(SEEN, "w"), indent=1)
+    with open(SEEN, "w", encoding="utf-8") as f:
+        json.dump(d, f, indent=1, ensure_ascii=False)
 
 
 def transition(host, old, new):
-    """Message for a state change, or None if it is not worth a popup."""
+    """Текст уведомления при смене статуса или None, если уведомлять не о чем."""
     if old == new:
         return None
     return WORTH_TELLING.get((old or "unknown", new))
@@ -77,12 +79,12 @@ def on_state(host, url, old, new, enabled=True):
     msg = transition(host, old, new)
     if not msg or not enabled:
         return None
-    send("reactor", f"{host} {msg}", url or "")
+    send("Reactor", f"{host}: {msg}", url or "")
     return msg
 
 
 def once(key, title, message, subtitle="", enabled=True):
-    """Fire a notification at most once ever for this key."""
+    """Показывает уведомление не более одного раза для данного ключа."""
     seen = _load()
     if key in seen or not enabled:
         return False
@@ -92,15 +94,15 @@ def once(key, title, message, subtitle="", enabled=True):
 
 
 def selftest():
-    assert transition("a", "live", "blocked").startswith("is now blocked")
-    assert transition("a", "blocked", "blocked") is None, "no popup when nothing changed"
-    assert transition("a", "blocked", "live-flagged") is None, "going backwards is not news"
-    assert "SUSPENDED" in transition("a", "live", "suspended")
-    assert transition("a", "blocked", "offline").startswith("stopped resolving")
-    assert "still registered" in transition("a", "live", "offline"), \
-        "going quiet must never be announced as a takedown"
-    assert transition("a", "offline", "live").startswith("is resolving again")
-    assert transition("a", "blocked", "live").startswith("is live again")
+    assert transition("a", "live", "blocked").startswith("теперь заблокирован")
+    assert transition("a", "blocked", "blocked") is None, "нет уведомления, если статус не изменился"
+    assert transition("a", "blocked", "live-flagged") is None, "откат статуса не требует уведомления"
+    assert "ПРИОСТАНОВЛЕН" in transition("a", "live", "suspended")
+    assert transition("a", "blocked", "offline").startswith("перестал резолвиться")
+    assert "ещё зарегистрирован" in transition("a", "live", "offline"), \
+        "пропажа DNS не должна объявляться полным снятием домена"
+    assert transition("a", "offline", "live").startswith("снова резолвится")
+    assert transition("a", "blocked", "live").startswith("снова активен")
     assert '"' not in _clean('he said "hi" \\ there')
     assert len(_clean("x" * 500)) <= 230
     print("notify selftest OK")
