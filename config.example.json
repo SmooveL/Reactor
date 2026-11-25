@@ -1,6 +1,6 @@
 {
   "reporter_email": "you+abuse@example.com",
-  "reporter_name": "A concerned internet user",
+  "reporter_name": "Специалист по защите бренда",
   "urlscan_key": "",
   "vt_key": "",
   "smtp_host": "",
@@ -20,7 +20,7 @@
   "identities": [
     {
       "email": "you+abuse@example.com",
-      "name": "A concerned internet user",
+      "name": "Специалист по защите бренда",
       "gmail_index": ""
     }
   ],

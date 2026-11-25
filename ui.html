@@ -1,12 +1,13 @@
 <!doctype html>
+<html lang="ru">
 <meta charset="utf-8">
-<title>reactor</title>
+<title>Reactor — Золотое Яблоко</title>
 <style>
 :root{--bg:#0e1116;--card:#161b22;--line:#2a313c;--fg:#e6edf3;--dim:#8b949e;
       --red:#f85149;--grn:#3fb950;--amb:#d29922;--acc:#58a6ff}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-header{padding:18px 24px;border-bottom:1px solid var(--line);display:flex;align-items:baseline;gap:14px}
+header{padding:18px 24px;border-bottom:1px solid var(--line);display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
 h1{margin:0;font-size:19px;letter-spacing:-.3px}
 .sub{color:var(--dim);font-size:12px}
 nav{display:flex;gap:4px;padding:0 24px;border-bottom:1px solid var(--line);
@@ -14,8 +15,8 @@ nav{display:flex;gap:4px;padding:0 24px;border-bottom:1px solid var(--line);
 nav button{background:none;border:0;border-bottom:2px solid transparent;color:var(--dim);
   padding:11px 14px;cursor:pointer;font-size:13px;font-weight:500}
 nav button.on{color:var(--fg);border-bottom-color:var(--acc)}
-main{padding:22px 24px;max-width:1080px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:16px 18px;margin-bottom:16px}
+main{padding:22px 24px;max-width:1180px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:9px;padding:16px 18px;margin-bottom:16px;overflow-x:auto}
 .card h2{margin:0 0 12px;font-size:13px;text-transform:uppercase;letter-spacing:.7px;color:var(--dim)}
 label{display:block;font-size:12px;color:var(--dim);margin:10px 0 4px}
 input[type=text],input[type=email],input[type=password],textarea,select{
@@ -24,35 +25,44 @@ input[type=text],input[type=email],input[type=password],textarea,select{
 input:focus,textarea:focus{outline:0;border-color:var(--acc)}
 textarea{min-height:64px;resize:vertical}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-button.go{background:var(--red);color:#fff;border:0;border-radius:7px;padding:12px 22px;
+.static-field{background:#0d1117;border:1px solid var(--line);border-radius:6px;
+  padding:9px 11px;font-weight:600;color:var(--fg)}
+button.go{background:var(--red);color:#fff;border:0;border-radius:7px;padding:11px 20px;
   font-size:14px;font-weight:600;cursor:pointer}
 button.go:disabled{opacity:.45;cursor:not-allowed}
 button.ghost{background:none;border:1px solid var(--line);color:var(--fg);border-radius:6px;
   padding:8px 14px;cursor:pointer;font-size:12px}
+button.ghost:disabled{opacity:.45;cursor:not-allowed}
 .sites{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:6px}
 .sites label{display:flex;gap:8px;align-items:flex-start;margin:0;padding:7px 9px;
   border:1px solid var(--line);border-radius:6px;color:var(--fg);font-size:12.5px;cursor:pointer}
 .sites label:hover{border-color:var(--acc)}
 .sites .k{font-size:10px;color:var(--dim);text-transform:uppercase}
 table{width:100%;border-collapse:collapse;font-size:12.5px}
-th{text-align:left;color:var(--dim);font-weight:500;padding:6px 8px;border-bottom:1px solid var(--line)}
-td{padding:7px 8px;border-bottom:1px solid #1d232c;vertical-align:top}
+th{text-align:left;color:var(--dim);font-weight:500;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:7px 8px;border-bottom:1px solid #1d232c;vertical-align:top;word-break:break-word}
 code{background:#0d1117;padding:1px 5px;border-radius:4px;font-size:12px}
 .ok{color:var(--grn)}.bad{color:var(--red)}.warn{color:var(--amb)}
-.kv{display:grid;grid-template-columns:130px 1fr;gap:4px 12px;font-size:12.5px}
+.kv{display:grid;grid-template-columns:150px 1fr;gap:5px 12px;font-size:12.5px}
 .kv b{color:var(--dim);font-weight:500}
 .banner{border-left:3px solid var(--amb);background:#1c1a12;padding:11px 14px;
   border-radius:0 6px 6px 0;font-size:12.5px;margin-bottom:16px}
+.alert-bad{border-left:3px solid var(--red);background:#261316;padding:10px 13px;
+  border-radius:0 6px 6px 0;font-size:12.5px;margin-top:10px;color:#ffb4b0}
+.alert-warn{border-left:3px solid var(--amb);background:#1c1a12;padding:10px 13px;
+  border-radius:0 6px 6px 0;font-size:12.5px;margin-top:10px;color:#f2cc60}
 .hide{display:none}
 .paste{width:100%;min-height:120px;font:13px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace}
 .target{border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:8px;
   background:#0d1117;display:flex;gap:12px;align-items:flex-start}
 .target.dupe{opacity:.55}
+.target.blocked{border-color:var(--red);background:#1d1215}
 .target h3{margin:0 0 4px;font-size:14px;font-weight:600;word-break:break-all}
 .pill{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;
-  border:1px solid var(--line);color:var(--dim);margin-right:5px}
+  border:1px solid var(--line);color:var(--dim);margin:2px 5px 2px 0}
 .pill.b{border-color:var(--acc);color:var(--acc)}
 .pill.w{border-color:var(--amb);color:var(--amb)}
+.pill.r{border-color:var(--red);color:var(--red)}
 .lures{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
 .step{font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:var(--dim);
   border-top:1px solid var(--line);padding-top:14px;margin:22px 0 10px}
@@ -60,46 +70,48 @@ kbd{background:#0d1117;border:1px solid var(--line);border-radius:4px;padding:1p
 a{color:var(--acc)}
 details summary{cursor:pointer;color:var(--dim);font-size:12px;margin-bottom:8px}
 .note{color:var(--dim);font-size:11.5px}
+.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 </style>
 
 <header>
-  <h1>reactor</h1>
-  <span class="sub">one URL in, every abuse desk notified</span>
+  <h1>Reactor</h1>
+  <span class="sub">автоматизация подачи жалоб на фишинговые ресурсы — Золотое Яблоко</span>
   <span class="sub" id="freshness" style="margin-left:auto"></span>
 </header>
 <nav>
-  <button class="on" data-tab="report">Report</button>
-  <button data-tab="settings">Settings</button>
-  <button data-tab="history">History</button>
+  <button class="on" data-tab="report">Жалоба</button>
+  <button data-tab="settings">Настройки</button>
+  <button data-tab="history">История</button>
 </nav>
 
 <main>
 <div class="banner">
-  This tool never opens the phishing site. Neither should you. The browser it drives
-  runs in a throwaway profile with none of your logins. Nothing is submitted until you press Submit all,
-  and forms guarded by a CAPTCHA can only ever be submitted by you, by hand.
+  При заполнении форм вендоров инструмент не открывает сам фишинговый сайт. Браузер запускается
+  в отдельном профиле без ваших рабочих сессий. Ничего не отправляется до нажатия «Отправить все»,
+  а формы с CAPTCHA всегда отправляются специалистом вручную. Жалобы на официальные домены
+  «Золотого Яблока» автоматически блокируются.
 </div>
 
-<!-- ------------------------------------------------------------- REPORT -->
+<!-- ------------------------------------------------------------- ЖАЛОБА -->
 <section id="tab-report">
   <div class="card" id="livecard">
-    <h2>Live status</h2>
-    <div id="livebox" class="note">loading…</div>
+    <h2>Текущий статус целей</h2>
+    <div id="livebox" class="note">загрузка…</div>
     <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <label style="display:flex;gap:6px;align-items:center;margin:0">
-        <input type="checkbox" id="mon_on" onchange="saveMonitor()"> keep checking automatically</label>
-      <label style="display:flex;gap:6px;align-items:center;margin:0">every
-        <input type="text" id="mon_min" value="15" style="width:52px" onchange="saveMonitor()"> min</label>
-      <label style="display:flex;gap:6px;align-items:center;margin:0" title="Fetches the page from your IP">
-        <input type="checkbox" id="mon_touch" onchange="saveMonitor()"> include a page fetch</label>
+        <input type="checkbox" id="mon_on" onchange="saveMonitor()"> проверять автоматически</label>
+      <label style="display:flex;gap:6px;align-items:center;margin:0">каждые
+        <input type="text" id="mon_min" value="15" style="width:52px" onchange="saveMonitor()"> мин</label>
+      <label style="display:flex;gap:6px;align-items:center;margin:0" title="Отправляет прямой HTTP-запрос с вашего IP">
+        <input type="checkbox" id="mon_touch" onchange="saveMonitor()"> с прямым запросом страницы</label>
       <span id="mon_note" class="note"></span>
     </div>
   </div>
 
   <div class="card">
-    <h2>Reporting as</h2>
+    <h2>Отправка от имени</h2>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <select id="who" style="max-width:360px" onchange="switchIdentity(this.value)"></select>
+      <select id="who" style="max-width:380px" onchange="switchIdentity(this.value)"></select>
       <span id="whonote" class="note"></span>
     </div>
   </div>
@@ -108,182 +120,194 @@ details summary{cursor:pointer;color:var(--dim);font-size:12px;margin-bottom:8px
   <div id="ctchip"></div>
 
   <div class="card">
-    <h2>Watch for the next one</h2>
-    <p class="note">Every TLS certificate is published to public logs minutes after it is
-      issued. A lookalike domain shows up there while it is still being set up — before
-      the SMS reaches you. Nothing here contacts those domains.</p>
+    <h2>Мониторинг новых доменов-имитаций (CT)</h2>
+    <p class="note">Каждый TLS-сертификат попадает в публичные логи через несколько минут после выпуска.
+      Домены-имитации «Золотого Яблока» видны там ещё до начала рассылки. Инструмент не обращается к этим сайтам.</p>
     <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <label style="display:flex;gap:6px;align-items:center;margin:0">
-        <input type="checkbox" id="ct_on" onchange="saveCT()"> watch certificate logs</label>
-      <label style="display:flex;gap:6px;align-items:center;margin:0">every
-        <input type="text" id="ct_min" value="60" style="width:52px" onchange="saveCT()"> min</label>
-      <label style="display:flex;gap:6px;align-items:center;margin:0">brands
+        <input type="checkbox" id="ct_on" onchange="saveCT()"> отслеживать логи сертификатов</label>
+      <label style="display:flex;gap:6px;align-items:center;margin:0">каждые
+        <input type="text" id="ct_min" value="60" style="width:52px" onchange="saveCT()"> мин</label>
+      <label style="display:flex;gap:6px;align-items:center;margin:0">ключевые слова
         <input type="text" id="ct_kw" style="width:230px" onchange="saveCT()"
-          placeholder="telegram, whatsapp"></label>
-      <button class="ghost" onclick="scanCT()">Scan now</button>
+          placeholder="goldapple, gold-apple"></label>
+      <button class="ghost" onclick="scanCT()">Проверить сейчас</button>
       <span id="ct_note" class="note"></span>
     </div>
     <div id="ct_hits" style="margin-top:12px"></div>
   </div>
 
-  <div class="step">Step 1 — paste the scam message</div>
+  <div class="step">Шаг 1 — вставьте фишинговое сообщение</div>
   <div class="card">
-    <h2>Paste what you received</h2>
-    <p class="note">Whole SMS or chat message. It pulls out the links — including
-      <code>hxxps</code>, <code>[.]</code> and <code>(dot)</code> tricks — works out which brand is
-      being spoofed from the wording, and skips anything you already reported.
-      <kbd>⌘</kbd>+<kbd>Enter</kbd> to scan.</p>
-    <textarea id="msg" class="paste" placeholder="Telegram Security Alert: a new device logged into your account. Verify within 24 hours or your account will be suspended: hxxps://tg-verify[.]icu/auth"></textarea>
+    <h2>Разбор текста сообщения</h2>
+    <p class="note">Вставьте SMS, письмо или сообщение из мессенджера. Инструмент извлечёт ссылки — включая
+      <code>hxxps</code>, <code>[.]</code> и <code>(точка)</code> — определит признаки мошенничества,
+      отсеет официальные домены «Золотого Яблока» и отметит уже обработанные сайты.
+      <kbd>Ctrl</kbd>+<kbd>Enter</kbd> для быстрого разбора.</p>
+    <textarea id="msg" class="paste" placeholder="Золотое Яблоко: вы выиграли бьюти-бокс! Срочно подтвердите доставку приза по ссылке: hxxps://gold-apple-prize[.]top/gift"></textarea>
     <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <button class="go" id="btn-scan">Find the links</button>
-      <label style="display:flex;gap:6px;align-items:center;margin:0" title="Only known shorteners are ever fetched">
-        <input type="checkbox" id="expand" checked> expand shortened links</label>
+      <button class="go" id="btn-scan">Найти ссылки</button>
+      <label style="display:flex;gap:6px;align-items:center;margin:0" title="Раскрываются только известные сервисы сокращения ссылок">
+        <input type="checkbox" id="expand" checked> раскрывать короткие ссылки</label>
       <label style="display:flex;gap:6px;align-items:center;margin:0"
-        title="Reads your clipboard while on. Only URLs are kept.">
-        <input type="checkbox" id="clipon" onchange="setClipboard(this.checked)"> watch my clipboard</label>
+        title="Читает буфер обмена пока включено. Сохраняются только извлечённые URL.">
+        <input type="checkbox" id="clipon" onchange="setClipboard(this.checked)"> следить за буфером обмена</label>
       <label style="display:flex;gap:6px;align-items:center;margin:0">
-        <input type="checkbox" id="notify_on" onchange="saveCT()"> desktop notifications</label>
-      <button class="ghost" onclick="fetch('/api/notify-test',{method:'POST',body:'{}'})">Test</button>
+        <input type="checkbox" id="notify_on" onchange="saveCT()"> уведомления на рабочем столе</label>
+      <button class="ghost" onclick="fetch('/api/notify-test',{method:'POST',body:'{}'})">Тест</button>
       <span id="scanmsg" class="note"></span>
     </div>
     <div id="targets" style="margin-top:14px"></div>
   </div>
 
-  <div class="step">Step 2 — or just paste one URL</div>
+  <div class="step">Шаг 2 — или укажите одну ссылку</div>
   <div class="card">
-    <h2>Single target</h2>
-    <label>Phishing URL</label>
-    <input id="url" type="text" placeholder="https://www.example.top/" autocomplete="off" spellcheck="false">
+    <h2>Одиночная цель</h2>
+    <label>Фишинговая ссылка (URL)</label>
+    <input id="url" type="text" placeholder="https://goldapple-prize.top/gift" autocomplete="off" spellcheck="false" oninput="checkSingleUrl()">
+    <div id="url-warn"></div>
     <div class="row">
       <div>
-        <label>Impersonated brand (optional — CCs their abuse desk)</label>
-        <select id="brand"><option value="">— none / unknown —</option></select>
+        <label>Атакуемый бренд</label>
+        <div class="static-field" id="target-brand-label">Цель: Золотое Яблоко (goldapple.ru)</div>
       </div>
       <div>
-        <label>Extra detail for the report forms (optional)</label>
-        <input id="comment" type="text" placeholder="auto-generated from recon if blank">
+        <label>Описание ресурса для форм и писем (необязательно)</label>
+        <input id="comment" type="text" placeholder="Например: фейковый розыгрыш бьюти-бокса Золотого Яблока со сбором данных карты" oninput="checkSingleUrl()">
       </div>
     </div>
   </div>
 
-  <div class="step">Step 3 — where it goes</div>
+  <div class="step">Шаг 3 — куда отправлять жалобы</div>
   <div class="card">
-    <h2>Where to send it</h2>
-    <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="do_apis" checked> Blocklist APIs (Netcraft, urlscan, VirusTotal, PhishStats)</label>
-    <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="do_emails" checked> Email complaints (registrar, host, brand, APWG)</label>
-    <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="do_browser" checked> Open the vendor report forms in tabs</label>
+    <h2>Каналы отправки</h2>
+    <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="do_apis" checked> API блок-листов (Netcraft, urlscan.io, VirusTotal)</label>
+    <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="do_emails" checked> Письма жалоб (регистратор, хостер, APWG)</label>
+    <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="do_browser" checked> Открыть формы жалоб вендоров во вкладках браузера</label>
     <details style="margin-top:12px">
-      <summary>Choose vendor sites (<span id="sitecount">16</span> selected)</summary>
-      <div style="margin-bottom:8px">
-        <button class="ghost" onclick="allSites(true)">All</button>
-        <button class="ghost" onclick="allSites(false)">None</button>
+      <summary>Выбрать площадки вендоров (выбрано: <span id="sitecount">15</span>)</summary>
+      <div style="margin-bottom:8px" class="actions">
+        <button class="ghost" onclick="allSites(true)">Выбрать все</button>
+        <button class="ghost" onclick="allSites(false)">Снять все</button>
       </div>
       <div class="sites" id="sites"></div>
     </details>
   </div>
 
-  <div style="display:flex;gap:10px;align-items:center;margin-bottom:22px">
-    <button class="ghost" id="btn-preview">Preview — recon only, send nothing</button>
-    <button class="go" id="btn-go">Report everywhere</button>
+  <div class="actions" style="margin-bottom:22px">
+    <button class="ghost" id="btn-preview">Предпросмотр — только разведка, без отправки</button>
+    <button class="go" id="btn-go">Отправить жалобы</button>
     <span id="status" class="note"></span>
   </div>
 
   <div id="out"></div>
 </section>
 
-<!-- ----------------------------------------------------------- SETTINGS -->
+<!-- ----------------------------------------------------------- НАСТРОЙКИ -->
 <section id="tab-settings" class="hide">
   <div class="card">
-    <h2>What is wired up</h2>
-    <div id="wiring">loading…</div>
+    <h2>Состояние интеграций</h2>
+    <div id="wiring">загрузка…</div>
   </div>
 
   <div class="card">
-    <h2>Where you are</h2>
-    <p class="note">Adds your country's CERT, regulator and police channels. The CERT can
-      lean on a host and registrar in ways an individual reporter cannot.</p>
-    <label>Country</label>
+    <h2>Страна и локальные каналы</h2>
+    <p class="note">Подключает национальные CERT, регуляторов и локальные формы жалоб для выбранной страны.</p>
+    <label>Страна</label>
     <select id="c_country" onchange="saveCountry()" style="max-width:280px"></select>
     <div id="chanlist" style="margin-top:12px"></div>
   </div>
 
   <div class="card">
-    <h2>Your reporting accounts</h2>
-    <p class="note">Add every address you report from and switch between them on the Report
-      tab. The chosen one is used for the vendor forms, the <code>From:</code> on the
-      complaint drafts, and the Gmail compose link.</p>
-    <p class="note">The Gmail link picks the account by <b>address</b>
-      (<code>authuser=</code>), so it works without you knowing any slot number. Leave
-      <b>Gmail slot</b> blank unless you have a reason to pin the <code>/u/N/</code> path —
-      a slot that does not exist in your browser makes Gmail fall back to
-      <code>/u/0/</code> and send from the wrong account.</p>
-    <div style="margin:6px 0 12px">
-      <button class="ghost" onclick="detectSlots()">Detect slots from Gmail</button>
+    <h2>Почтовые аккаунты для жалоб</h2>
+    <p class="note">Добавьте адреса, с которых подаются жалобы, и переключайтесь между ними на вкладке «Жалоба».
+      Выбранный адрес используется в формах вендоров, в поле <code>From:</code> черновиков и в ссылках Gmail.</p>
+    <p class="note">Ссылка Gmail выбирает ящик по <b>адресу</b> (<code>authuser=</code>), поэтому поле
+      <b>Слот Gmail</b> можно оставить пустым. Указывайте номер слота, только если нужно жёстко закрепить путь
+      <code>/u/N/</code>.</p>
+    <div style="margin:6px 0 12px" class="actions">
+      <button class="ghost" onclick="detectSlots()">Определить слоты из Gmail</button>
       <span id="detmsg" class="note"></span>
     </div>
     <div id="idlist"></div>
     <div class="row" style="margin-top:12px">
-      <div><label>Add address</label><input id="new_email" type="email" placeholder="you+abuse@gmail.com"></div>
-      <div><label>Display name</label><input id="new_name" type="text" placeholder="A concerned internet user"></div>
-      <div><label>Gmail slot (optional)</label><input id="new_gi" type="text" placeholder="auto"></div>
-      <div style="display:flex;align-items:flex-end"><button class="ghost" onclick="addIdentity()">Add account</button></div>
+      <div><label>Добавить адрес</label><input id="new_email" type="email" placeholder="drp-abuse@example.com"></div>
+      <div><label>Имя отправителя</label><input id="new_name" type="text" placeholder="Специалист по защите бренда"></div>
+      <div><label>Слот Gmail (необязательно)</label><input id="new_gi" type="text" placeholder="авто"></div>
+      <div style="display:flex;align-items:flex-end"><button class="ghost" onclick="addIdentity()">Добавить аккаунт</button></div>
     </div>
   </div>
+
   <div class="card">
-    <h2>API keys — optional, both free</h2>
-    <div class="row">
-      <div><label>urlscan.io key</label><input id="c_urlscan_key" type="password" autocomplete="off"></div>
-      <div><label>VirusTotal key</label><input id="c_vt_key" type="password" autocomplete="off"></div>
-      <div><label>Google Safe Browsing key</label><input id="c_gsb_key" type="password" autocomplete="off"></div>
-    </div>
-    <p class="note">Blank just means those two get skipped. Stored in config.json, chmod 600.</p>
+    <h2>Официальные домены «Золотого Яблока» (защищены от жалоб)</h2>
+    <p class="note">Хранятся в <code>config.json</code> (ключ <code>legit_domains</code>). Жалобы на эти домены и их поддомены блокируются автоматически.</p>
+    <div id="legitlist" class="lures"></div>
   </div>
+
   <div class="card">
-    <h2>SMTP — optional, sends the complaint emails for real</h2>
-    <p class="note">Leave blank and you get .eml files instead; open them in Mail and hit send.
-      Gmail needs an app password, not your account password.</p>
+    <h2>API-ключи — необязательно, доступны бесплатные тарифы</h2>
     <div class="row">
-      <div><label>Host</label><input id="c_smtp_host" type="text" placeholder="smtp.gmail.com"></div>
-      <div><label>Port</label><input id="c_smtp_port" type="text" placeholder="587"></div>
-      <div><label>User</label><input id="c_smtp_user" type="text" autocomplete="off"></div>
-      <div><label>App password</label><input id="c_smtp_pass" type="password" autocomplete="off"></div>
+      <div><label>Ключ urlscan.io</label><input id="c_urlscan_key" type="password" autocomplete="off"></div>
+      <div><label>Ключ VirusTotal</label><input id="c_vt_key" type="password" autocomplete="off"></div>
+      <div><label>Ключ Google Safe Browsing</label><input id="c_gsb_key" type="password" autocomplete="off"></div>
+    </div>
+    <p class="note">Если ключ не указан, соответствующий сервис пропускается со статусом SKIP. Хранится локально в <code>config.json</code>.</p>
+  </div>
+
+  <div class="card">
+    <h2>SMTP — необязательно, для автоматической отправки писем</h2>
+    <p class="note">Если поля пустые, инструмент сохранит файлы <code>.eml</code> и ссылки на черновики.
+      Для Gmail требуется пароль приложения, а не основной пароль от аккаунта.</p>
+    <div class="row">
+      <div><label>SMTP-сервер</label><input id="c_smtp_host" type="text" placeholder="smtp.gmail.com"></div>
+      <div><label>Порт</label><input id="c_smtp_port" type="text" placeholder="587"></div>
+      <div><label>Логин</label><input id="c_smtp_user" type="text" autocomplete="off"></div>
+      <div><label>Пароль / пароль приложения</label><input id="c_smtp_pass" type="password" autocomplete="off"></div>
     </div>
   </div>
-  <button class="ghost" id="btn-save">Save settings</button>
-  <span id="savemsg" class="note"></span>
+  <div class="actions">
+    <button class="ghost" id="btn-save">Сохранить настройки</button>
+    <span id="savemsg" class="note"></span>
+  </div>
 </section>
 
-<!-- ------------------------------------------------------------ HISTORY -->
+<!-- ------------------------------------------------------------ ИСТОРИЯ -->
 <section id="tab-history" class="hide">
   <div class="card">
-    <h2>Pages you have reported</h2>
-    <p class="note">One case file per target, kept in <code>reports/&lt;host&gt;/case.json</code>.
-      Timestamped proof of what went where — this is what ICANN wants 24h after the
-      registrar ignores you.</p>
-    <div id="runs">loading…</div>
-  </div>
-  <div class="card">
-    <h2>Campaigns</h2>
-    <p class="note">Pages that look like the same operator. Shared Cloudflare is ignored —
-      almost every phishing site is behind it, so it proves nothing.</p>
-    <div id="campaigns">loading…</div>
+    <h2>Обработанные фишинговые ресурсы</h2>
+    <p class="note">По каждому ресурсу ведётся отдельное дело в <code>reports/<хост>/case.json</code>
+      с отметками времени — эти данные нужны для эскалации в ICANN, если регистратор не реагирует более 24 часов.</p>
+    <div id="runs">загрузка…</div>
   </div>
 
   <div class="card">
-    <h2>What it has learned</h2>
-    <p class="note">Clicks and menu choices recorded from your own sessions, replayed on the
-      next run. Your typed text is stored as tokens, never raw. Passwords are never recorded.</p>
-    <div id="recipes">loading…</div>
+    <h2>Связанные кампании</h2>
+    <p class="note">Ресурсы с признаками одного оператора. Общий Cloudflare не учитывается,
+      так как его использует большинство фишинговых сайтов.</p>
+    <div id="campaigns">загрузка…</div>
+  </div>
+
+  <div class="card">
+    <h2>Сохранённые рецепты автозаполнения</h2>
+    <p class="note">Шаги, записанные из ваших прошлых сессий на формах вендоров и воспроизводимые повторно.
+      Текст сохраняется в виде токенов, пароли никогда не записываются.</p>
+    <div id="recipes">загрузка…</div>
   </div>
 </section>
 </main>
 
 <script>
 const $ = s => document.querySelector(s);
-const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&','<':'<','>':'>','"':'"'}[c]));
 const CFG_KEYS = ['urlscan_key','vt_key','gsb_key','smtp_host','smtp_port','smtp_user','smtp_pass'];
+const GA_MARKERS = [
+  'goldapple','gold-apple','gold_apple','gold apple',
+  'золотое яблоко','золотого яблока','золотому яблоку','золотым яблоком','золотом яблоке',
+  'goldaple','g0ldapple'
+];
 let IDS = [], ACTIVE = 0;
 let SITES = [];
+let LEGIT_DOMAINS = ['goldapple.ru','goldapple.kz','goldapple.by','goldapple.sa','goldapple.qa','goldapple.ae'];
 
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
   document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x === b));
@@ -295,29 +319,78 @@ document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
 
 const BUILD = "__BUILD__";
 
+function isLegitUrl(raw) {
+  const s = (raw || '').trim();
+  if (!s) return false;
+  try {
+    const u = new URL(/^https?:\/\//i.test(s) ? s : 'https://' + s);
+    const host = (u.hostname || '').toLowerCase().replace(/\.+$/, '');
+    if (!host) return false;
+    return LEGIT_DOMAINS.some(d => {
+      const clean = String(d || '').toLowerCase().trim().replace(/\.+$/, '');
+      return clean && (host === clean || host.endsWith('.' + clean));
+    });
+  } catch (e) { return false; }
+}
+
+function looksLikeGoldApple(url, comment) {
+  const hay = ((url || '') + ' ' + (comment || '')).toLowerCase();
+  return GA_MARKERS.some(m => hay.includes(m));
+}
+
+function checkSingleUrl() {
+  const url = ($('#url').value || '').trim();
+  const comment = ($('#comment').value || '').trim();
+  const box = $('#url-warn');
+  if (!url) {
+    box.innerHTML = '';
+    return;
+  }
+  if (isLegitUrl(url)) {
+    box.innerHTML = `<div class="alert-bad"><b>Заблокировано:</b> это официальный домен «Золотого Яблока». Подача жалоб на официальные домены запрещена.</div>`;
+    return;
+  }
+  if (!looksLikeGoldApple(url, comment)) {
+    box.innerHTML = `<div class="alert-warn"><b>Предупреждение:</b> ссылка и описание не похожи на «Золотое Яблоко». Проверьте ресурс перед отправкой (отправка не заблокирована).</div>`;
+    return;
+  }
+  box.innerHTML = '';
+}
+
 async function boot() {
   const d = await (await fetch('/api/bootstrap', {cache: 'no-store'})).json();
   if (d.build && BUILD !== "__BUILD__" && d.build !== BUILD) {
-    // the server has a newer page than the one this tab loaded
     location.reload(true);
     return;
   }
   SITES = d.sites;
+  if (d.config && Array.isArray(d.config.legit_domains) && d.config.legit_domains.length) {
+    LEGIT_DOMAINS = d.config.legit_domains;
+  }
+  if (d.target_brand) {
+    $('#target-brand-label').textContent = 'Цель: ' + d.target_brand;
+  }
+  $('#legitlist').innerHTML = LEGIT_DOMAINS.map(dom => `<span class="pill b">${esc(dom)}</span>`).join('');
   CFG_KEYS.forEach(k => { if ($('#c_' + k)) $('#c_' + k).value = d.config[k] || ''; });
   renderIdentities(d.config);
   renderCountry(d);
+  const KIND_SITE = {report: 'форма жалобы', lookup: 'проверка + жалоба'};
   $('#sites').innerHTML = SITES.map(s => `
     <label><input type="checkbox" class="site" value="${s.id}" ${s.skip ? '' : 'checked'}>
-      <span>${esc(s.name)}<br><span class="k">${s.skip ? 'unavailable' : s.kind}</span></span></label>`).join('');
+      <span>${esc(s.name)}<br><span class="k">${s.skip ? 'недоступно' : (KIND_SITE[s.kind] || s.kind)}</span></span></label>`).join('');
   document.querySelectorAll('.site').forEach(c => c.onchange = countSites);
-  const brands = ['telegram','whatsapp','binance','coinbase','paypal','apple','microsoft',
-                  'amazon','google','netflix','facebook','instagram','meta'];
-  $('#brand').innerHTML += brands.map(b => `<option value="${b}">${b}</option>`).join('');
+  countSites();
 }
-const STATE_LABEL = {suspended:['ok','SUSPENDED by registrar'],
-  offline:['warn','offline — still registered'], down:['ok','taken down'],
-  blocked:['ok','blocked / warned'], 'live-flagged':['warn','live, flagged'],
-  live:['bad','live, unflagged'], unknown:['note','unknown']};
+
+const STATE_LABEL = {
+  suspended: ['ok', 'приостановлен регистратором'],
+  offline: ['warn', 'недоступен — домен ещё зарегистрирован'],
+  down: ['ok', 'снят'],
+  blocked: ['ok', 'заблокирован / предупреждение'],
+  'live-flagged': ['warn', 'работает, но есть в блок-листах'],
+  live: ['bad', 'работает, не заблокирован'],
+  unknown: ['note', 'неизвестно'],
+};
 
 async function liveTick() {
   try {
@@ -328,38 +401,40 @@ async function liveTick() {
     const age = d.cases.length && d.cases[0].takedown && d.cases[0].takedown.checked
       ? Math.round((Date.now() - new Date(d.cases[0].takedown.checked)) / 1000) : null;
     $('#freshness').innerHTML = age === null ? ''
-      : `live · data ${age < 90 ? 'just now' : Math.round(age/60) + ' min old'}`;
-    $('#mon_note').textContent = d.checking ? `checking ${d.checking}…`
-      : d.last_sweep ? `last sweep ${new Date(d.last_sweep).toLocaleTimeString()}`
-      : (d.on ? 'first sweep due' : 'off — press Check status in History for a one-off');
+      : `онлайн · обновлено ${age < 90 ? 'только что' : Math.round(age/60) + ' мин назад'}`;
+    $('#mon_note').textContent = d.checking ? `проверяется ${d.checking}…`
+      : d.last_sweep ? `последняя проверка: ${new Date(d.last_sweep).toLocaleTimeString()}`
+      : (d.on ? 'ожидается первая проверка' : 'выключено — можно проверять вручную во вкладке «История»');
     $('#livebox').innerHTML = d.cases.length ? `<table>
-      <tr><th>Page</th><th>State</th><th>Why</th><th>Last checked</th></tr>` +
+      <tr><th>Ресурс</th><th>Статус</th><th>Подробности</th><th>Проверено</th></tr>` +
       d.cases.map(c => {
         const t = c.takedown || {};
         const lab = STATE_LABEL[t.state] || STATE_LABEL.unknown;
         return `<tr><td><code>${esc(c.url || c.host)}</code></td>
           <td class="${lab[0]}">${lab[1]}</td>
           <td class="note">${esc(t.why || t.note || '—')}</td>
-          <td class="note">${t.checked ? esc(new Date(t.checked).toLocaleTimeString()) : 'never'}</td></tr>`;
-      }).join('') + `</table>` : '<span class="note">Nothing reported yet.</span>';
-  } catch (e) { $('#livebox').innerHTML = '<span class="note">server not reachable</span>'; }
+          <td class="note">${t.checked ? esc(new Date(t.checked).toLocaleTimeString()) : 'никогда'}</td></tr>`;
+      }).join('') + `</table>` : '<span class="note">Жалоб пока не подавалось.</span>';
+  } catch (e) { $('#livebox').innerHTML = '<span class="note">сервер недоступен</span>'; }
   setTimeout(liveTick, 10000);
 }
 
 async function saveMonitor() {
   const r = await fetch('/api/monitor', {method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({monitor: $('#mon_on').checked ? 'on' : 'off',
+    body: JSON.stringify({
+      monitor: $('#mon_on').checked ? 'on' : 'off',
       monitor_minutes: $('#mon_min').value,
-      monitor_touch: $('#mon_touch').checked ? 'on' : 'off'})});
+      monitor_touch: $('#mon_touch').checked ? 'on' : 'off',
+    })});
   await r.json();
-  $('#mon_note').textContent = 'saved';
+  $('#mon_note').textContent = 'сохранено';
 }
 
 async function loadWiring() {
   const d = await (await fetch('/api/wiring', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'})).json();
-  $('#wiring').innerHTML = `<table><tr><th></th><th>Piece</th><th>Unlocks</th><th>How to get it</th></tr>` +
+  $('#wiring').innerHTML = `<table><tr><th>Статус</th><th>Компонент</th><th>Что даёт</th><th>Как настроить</th></tr>` +
     d.items.map(i => `<tr>
-      <td class="${i.ok?'ok':'warn'}">${i.ok ? 'ready' : 'missing'}</td>
+      <td class="${i.ok?'ok':'warn'}">${i.ok ? 'готово' : 'не задано'}</td>
       <td>${esc(i.name)}</td><td class="note">${esc(i.unlocks)}</td>
       <td class="note">${esc(i.how)}</td></tr>`).join('') + `</table>`;
 }
@@ -369,22 +444,25 @@ let COUNTRIES = [];
 function renderCountry(d) {
   COUNTRIES = d.countries || [];
   const cur = (d.config && d.config.country) || '';
-  $('#c_country').innerHTML = `<option value="">— not set —</option>` +
+  $('#c_country').innerHTML = `<option value="">— не выбрано —</option>` +
     COUNTRIES.map(([code, name]) =>
       `<option value="${esc(code)}" ${code === cur ? 'selected' : ''}>${esc(name)}</option>`).join('');
-  const KIND = {email: 'emailed automatically', form: 'web form — you fill it',
-                hotline: 'phone — you call'};
+  const KIND = {
+    email: 'автоматически в письмах',
+    form: 'веб-форма — заполняется вручную',
+    hotline: 'горячая линия — телефон',
+  };
   $('#chanlist').innerHTML = (d.channels && d.channels.length)
-    ? `<table><tr><th>Channel</th><th>How</th><th>When</th><th>Why</th></tr>` +
+    ? `<table><tr><th>Канал</th><th>Способ</th><th>Когда применять</th><th>Пояснение</th></tr>` +
       d.channels.map(c => `<tr>
         <td><b>${esc(c.org)}</b><br>${c.kind === 'form'
           ? `<a href="${esc(c.target)}" target="_blank" rel="noopener noreferrer">${esc(c.target)}</a>`
           : `<code>${esc(c.target)}</code>`}
-          <div class="note">checked: ${esc(c.verified)}</div></td>
+          <div class="note">проверено: ${esc(c.verified)}</div></td>
         <td class="note">${esc(KIND[c.kind] || c.kind)}</td>
-        <td class="${c.when.startsWith('ONLY') ? 'warn' : 'note'}">${esc(c.when)}</td>
+        <td class="${(c.when.startsWith('ТОЛЬКО') || c.when.startsWith('ONLY')) ? 'warn' : 'note'}">${esc(c.when)}</td>
         <td class="note">${esc(c.note)}</td></tr>`).join('') + `</table>`
-    : '<p class="note">No country selected, so no local channels are added.</p>';
+    : '<p class="note">Страна не выбрана — национальные каналы не подключены.</p>';
 }
 
 async function saveCountry() {
@@ -397,21 +475,21 @@ async function saveCountry() {
 function renderIdentities(cfg) {
   IDS = cfg.identities || []; ACTIVE = cfg.active || 0;
   $('#who').innerHTML = IDS.map((i, n) =>
-    `<option value="${n}" ${n === ACTIVE ? 'selected' : ''}>${esc(i.email)}${i.gmail_index === '' ? '' : ` — pinned /u/${i.gmail_index}/`}</option>`).join('');
+    `<option value="${n}" ${n === ACTIVE ? 'selected' : ''}>${esc(i.email)}${i.gmail_index === '' ? '' : ` — слот /u/${i.gmail_index}/`}</option>`).join('');
   const smtpUser = cfg.smtp_user || '';
   $('#whonote').innerHTML = (smtpUser && smtpUser !== cfg.reporter_email)
-    ? `<span class="warn">SMTP is configured as ${esc(smtpUser)} — it will not match this From address. Use the compose links instead.</span>`
-    : 'Used for the vendor forms, the draft From: line, and the Gmail compose link.';
+    ? `<span class="warn">В SMTP указан логин ${esc(smtpUser)} — он не совпадает с этим адресом From:. Используйте ссылки открытия черновика.</span>`
+    : 'Используется для форм вендоров, поля From: в черновиках и ссылок Gmail.';
   const list = $('#idlist');
-  if (list) list.innerHTML = `<table><tr><th>Address</th><th>Name</th><th>Gmail slot</th><th>Active</th><th></th></tr>` +
+  if (list) list.innerHTML = `<table><tr><th>Адрес</th><th>Имя</th><th>Слот Gmail</th><th>Статус</th><th></th></tr>` +
     IDS.map((i, n) => `<tr>
       <td><code>${esc(i.email)}</code></td><td class="note">${esc(i.name)}</td>
-      <td><input type="text" value="${i.gmail_index === '' ? '' : i.gmail_index}" placeholder="auto"
+      <td><input type="text" value="${i.gmail_index === '' ? '' : i.gmail_index}" placeholder="авто"
             style="width:66px" onchange="setSlot(${n}, this.value)">
-          ${i.gmail_index === '' ? '<span class="ok note"> by address</span>'
-                                 : '<span class="warn note"> pinned</span>'}</td>
-      <td>${n === ACTIVE ? '<span class="ok">in use</span>' : `<button class="ghost" onclick="switchIdentity(${n})">Use</button>`}</td>
-      <td>${IDS.length > 1 ? `<button class="ghost" onclick="removeIdentity(${n})">Remove</button>` : ''}</td>
+          ${i.gmail_index === '' ? '<span class="ok note"> по адресу</span>'
+                                 : '<span class="warn note"> закреплён</span>'}</td>
+      <td>${n === ACTIVE ? '<span class="ok">активен</span>' : `<button class="ghost" onclick="switchIdentity(${n})">Выбрать</button>`}</td>
+      <td>${IDS.length > 1 ? `<button class="ghost" onclick="removeIdentity(${n})">Удалить</button>` : ''}</td>
     </tr>`).join('') + `</table>`;
 }
 
@@ -420,7 +498,7 @@ async function detectSlots() {
   const r = await fetch('/api/detect-slots', {method:'POST', body:'{}'});
   const d0 = await r.json();
   if (d0.error) { msg.innerHTML = `<span class="bad">${esc(d0.error)}</span>`; return; }
-  msg.innerHTML = 'a browser window is opening — sign in to your Google accounts there if asked';
+  msg.innerHTML = 'открывается окно браузера — при необходимости войдите в свои аккаунты Google';
   const tick = async () => {
     const d = await (await fetch('/api/detect-status')).json();
     if (d.error) { msg.innerHTML = `<span class="bad">${esc(d.error)}</span>`; return; }
@@ -429,7 +507,7 @@ async function detectSlots() {
     renderIdentities(d.config);
     msg.innerHTML = d.result.length
       ? `<span class="ok">${d.result.map(x => `/u/${x.index}/ = ${esc(x.email)}`).join(' · ')}</span>
-         <span class="note">— wrong? just type over the number</span>`
+         <span class="note">— при ошибке просто исправьте номер вручную</span>`
       : `<span class="warn">${esc(d.status)}</span>`;
   };
   setTimeout(tick, 1500);
@@ -446,15 +524,18 @@ async function setSlot(n, v) {
   await pushIdentities();
 }
 async function removeIdentity(n) {
-  if (!confirm('Remove ' + IDS[n].email + '?')) return;
+  if (!confirm('Удалить аккаунт ' + IDS[n].email + '?')) return;
   IDS.splice(n, 1);
   await pushIdentities(Math.min(ACTIVE, IDS.length - 1));
 }
 async function addIdentity() {
   const email = $('#new_email').value.trim();
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { alert('Enter a valid email address'); return; }
-  IDS.push({email, name: $('#new_name').value.trim() || 'A concerned internet user',
-            gmail_index: /^\d+$/.test($('#new_gi').value.trim()) ? parseInt($('#new_gi').value, 10) : ''});
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { alert('Введите корректный e-mail'); return; }
+  IDS.push({
+    email,
+    name: $('#new_name').value.trim() || 'Специалист по защите бренда',
+    gmail_index: /^\d+$/.test($('#new_gi').value.trim()) ? parseInt($('#new_gi').value, 10) : '',
+  });
   $('#new_email').value = $('#new_name').value = $('#new_gi').value = '';
   await pushIdentities(IDS.length - 1);
 }
@@ -467,7 +548,7 @@ function cfgFromForm(){ const o = {}; CFG_KEYS.forEach(k => { if ($('#c_'+k)) o[
 $('#btn-save').onclick = async () => {
   await fetch('/api/config', {method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify(cfgFromForm())});
-  $('#savemsg').textContent = 'saved ' + new Date().toLocaleTimeString();
+  $('#savemsg').textContent = 'сохранено в ' + new Date().toLocaleTimeString();
   const r = await (await fetch('/api/bootstrap')).json();
   renderIdentities(r.config);
   loadWiring();
@@ -482,90 +563,105 @@ $('#msg').addEventListener('keydown', e => {
 
 async function scanMessage() {
   const text = $('#msg').value.trim();
-  if (!text) { alert('Paste the message first'); return; }
-  $('#scanmsg').textContent = 'reading…';
+  if (!text) { alert('Сначала вставьте текст сообщения'); return; }
+  $('#scanmsg').textContent = 'разбор…';
   const d = await (await fetch('/api/intake', {method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({text, expand: $('#expand').checked})})).json();
   TARGETS = d.targets;
   $('#scanmsg').textContent = d.summary;
   const lures = (d.lures || []).map(l => `<span class="pill w">${esc(l)}</span>`).join('');
   if (!TARGETS.length) {
-    $('#targets').innerHTML = `<p class="note">No links found. Paste the raw message —
-      forwarding sometimes strips them.</p>${lures ? '<div class="lures">' + lures + '</div>' : ''}`;
+    $('#targets').innerHTML = `<p class="note">Ссылки не найдены. Вставьте исходный текст сообщения —
+      при пересылке ссылки иногда обрезаются.</p>${lures ? '<div class="lures">' + lures + '</div>' : ''}`;
     return;
   }
   $('#targets').innerHTML = (lures ? `<div class="lures" style="margin-bottom:12px">${lures}</div>` : '') +
-    TARGETS.map((t, i) => `<div class="target ${t.already_reported ? 'dupe' : ''}">
-      <input type="checkbox" class="tgt" value="${i}" ${t.already_reported ? '' : 'checked'} style="margin-top:3px">
-      <div style="flex:1">
-        <h3>${esc(t.url)}</h3>
-        <div>
-          ${t.brand ? `<span class="pill b">${esc(t.brand)}</span>` : '<span class="pill">brand unknown</span>'}
-          <span class="pill">${esc(t.domain)}</span>
-          ${t.already_reported ? '<span class="pill w">already reported</span>' : ''}
-          ${t.original ? `<span class="pill">was ${esc(t.original)}</span>` : ''}
+    TARGETS.map((t, i) => {
+      const blocked = !!t.is_legit;
+      const checked = !blocked && !t.already_reported;
+      return `<div class="target ${blocked ? 'blocked' : (t.already_reported ? 'dupe' : '')}">
+        <input type="checkbox" class="tgt" value="${i}" ${checked ? 'checked' : ''} ${blocked ? 'disabled' : ''} style="margin-top:3px">
+        <div style="flex:1">
+          <h3>${esc(t.url)}</h3>
+          <div>
+            ${blocked
+              ? '<span class="pill r">официальный домен — заблокировано</span>'
+              : '<span class="pill b">Золотое Яблоко</span>'}
+            <span class="pill">${esc(t.domain)}</span>
+            ${t.already_reported ? '<span class="pill w">уже отправлялось</span>' : ''}
+            ${t.original ? `<span class="pill">было: ${esc(t.original)}</span>` : ''}
+          </div>
+          ${t.warning ? `<div class="${blocked ? 'bad' : 'warn'}" style="font-size:12px;margin-top:6px">${esc(t.warning)}</div>` : ''}
+          ${t.note ? `<div class="note" style="margin-top:4px">${esc(t.note)}</div>` : ''}
         </div>
-        ${t.note ? `<div class="note" style="margin-top:6px">${esc(t.note)}</div>` : ''}
-      </div>
-      <button class="ghost" onclick="useTarget(${i})">Use as single target</button>
-    </div>`).join('') +
+        <button class="ghost" ${blocked ? 'disabled' : ''} onclick="useTarget(${i})">В шаг 2</button>
+      </div>`;
+    }).join('') +
     `<div style="margin-top:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <button class="go" onclick="reportChecked()">Report all checked</button>
-      <span class="note">Blocklist APIs + complaint drafts for each. Vendor forms are one page at a time — use “Use as single target”.</span>
+      <button class="go" onclick="reportChecked()">Отправить все отмеченные</button>
+      <span class="note">API блок-листов и черновики писем для каждой ссылки. Формы вендоров открываются по одной — нажмите «В шаг 2».</span>
     </div>
     <div id="batchout"></div>`;
 }
 
 function useTarget(i) {
   const t = TARGETS[i];
+  if (!t || t.is_legit) return;
   $('#url').value = t.url;
-  $('#brand').value = t.brand || '';
+  checkSingleUrl();
   $('#url').scrollIntoView({behavior:'smooth', block:'center'});
   $('#url').focus();
 }
 
 async function reportChecked() {
-  const picks = [...document.querySelectorAll('.tgt:checked')].map(c => TARGETS[+c.value]);
-  if (!picks.length) { alert('Nothing checked'); return; }
-  if (!confirm(`Send real abuse reports about ${picks.length} link(s)?\n\n` +
-      picks.map(p => p.url).join('\n') + '\n\nReports are permanent.')) return;
+  const picks = [...document.querySelectorAll('.tgt:checked')]
+    .map(c => TARGETS[+c.value])
+    .filter(p => p && !p.is_legit);
+  if (!picks.length) { alert('Не выбрано ни одной допустимой ссылки'); return; }
+  if (!confirm(`Отправить реальные жалобы по ${picks.length} ссылкам?\n\n` +
+      picks.map(p => p.url).join('\n') + '\n\nОтправленные жалобы нельзя отозвать.')) return;
   const box = $('#batchout');
-  box.innerHTML = '<p class="note">reporting…</p>';
+  box.innerHTML = '<p class="note">отправка…</p>';
   const d = await (await fetch('/api/report-batch', {method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({targets: picks.map(p => ({url: p.url, brand: p.brand}))})})).json();
+    body: JSON.stringify({targets: picks.map(p => ({url: p.url}))})})).json();
   box.innerHTML = `<div class="card" style="background:#0d1117;margin-top:12px">
-    <h2>Batch result</h2>
-    <table><tr><th>Link</th><th>Registrar</th><th>Blocklists</th><th>Drafts</th></tr>` +
+    <h2>Результат пакетной обработки</h2>
+    <table><tr><th>Ресурс</th><th>Регистратор</th><th>Блок-листы</th><th>Черновики писем</th></tr>` +
     d.results.map(r => r.error
       ? `<tr><td><code>${esc(r.url)}</code></td><td colspan="3" class="bad">${esc(r.error)}</td></tr>`
       : `<tr><td><code>${esc(r.host)}</code>${r.cloudflare ? ' <span class="pill w">Cloudflare</span>' : ''}</td>
            <td class="note">${esc(r.registrar || '—')}</td>
-           <td class="note">${esc(r.apis.filter(a=>a.status==='OK').map(a=>a.name).join(', ') || 'none')}</td>
-           <td class="note">${r.emails.length} written</td></tr>`).join('') +
-    `</table><p class="note">Open the drafts from the History tab, or scan a single target
-      above to drive the vendor forms.</p></div>`;
+           <td class="note">${esc(r.apis.filter(a=>a.status==='OK').map(a=>a.name).join(', ') || 'нет')}</td>
+           <td class="note">создано: ${r.emails.length}</td></tr>`).join('') +
+    `</table><p class="note">Откройте черновики во вкладке «История» или перенесите ссылку в шаг 2, чтобы открыть формы вендоров.</p></div>`;
   liveTick();
 }
 
 async function go(submit) {
   const url = $('#url').value.trim();
-  if (!/^https?:\/\//i.test(url)) { alert('URL must start with http:// or https://'); return; }
-  if (submit && !confirm('This sends real abuse reports about:\n\n' + url +
-      '\n\nReports are permanent and go to third parties. Continue?')) return;
+  if (!/^https?:\/\//i.test(url)) { alert('Ссылка должна начинаться с http:// или https://'); return; }
+  if (isLegitUrl(url)) {
+    checkSingleUrl();
+    alert('Отправка заблокирована: указанный адрес принадлежит официальному домену «Золотого Яблока».');
+    return;
+  }
+  if (submit && !confirm('Отправить реальные жалобы на ресурс:\n\n' + url +
+      '\n\nЖалобы уйдут сторонним сервисам и не могут быть отозваны. Продолжить?')) return;
   $('#btn-go').disabled = $('#btn-preview').disabled = true;
-  $('#status').textContent = submit ? 'reporting…' : 'looking it up…';
+  $('#status').textContent = submit ? 'отправка жалоб…' : 'сбор данных…';
   try {
     const r = await fetch('/api/report', {method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({
-        url, submit, brand: $('#brand').value, comment: $('#comment').value,
+        url, submit, comment: $('#comment').value,
         do_apis: $('#do_apis').checked, do_emails: $('#do_emails').checked,
         do_browser: $('#do_browser').checked, config: cfgFromForm(),
-        site_ids: [...document.querySelectorAll('.site:checked')].map(c => c.value)})});
+        site_ids: [...document.querySelectorAll('.site:checked')].map(c => c.value),
+      })});
     const d = await r.json();
     if (d.error) { $('#out').innerHTML = `<div class="card bad">${esc(d.error)}</div>`; }
     else { render(d); if (d.browser && d.browser.started) pollBrowser(); }
-    $('#status').textContent = submit ? 'done' : 'preview only — nothing sent';
-  } catch (e) { $('#status').textContent = 'error: ' + e; }
+    $('#status').textContent = submit ? 'готово' : 'предпросмотр — ничего не отправлено';
+  } catch (e) { $('#status').textContent = 'ошибка: ' + e; }
   $('#btn-go').disabled = $('#btn-preview').disabled = false;
 }
 $('#btn-go').onclick = () => go(true);
@@ -573,36 +669,44 @@ $('#btn-preview').onclick = () => go(false);
 
 function render(d) {
   const i = d.recon, fresh = i.created && i.created.slice(0,4) >= '2024';
-  let h = `<div class="card"><h2>Recon</h2><div class="kv">
-    <b>Domain</b><span><code>${esc(i.domain)}</code></span>
-    <b>Registered</b><span>${esc(i.created||'unknown')} ${fresh?'<span class="warn">— brand new, strong phishing signal</span>':''}</span>
-    <b>Registrar</b><span>${esc(i.registrar||'unknown')}</span>
-    <b>IPs</b><span>${esc((i.ips||[]).join(', '))}</span>
-    <b>Nameservers</b><span>${esc((i.ns||[]).join(', '))}</span>
-    <b>Network</b><span>${esc(i.network||'unknown')}${i.cloudflare?' <span class="warn">(Cloudflare fronts it — report to Cloudflare first, they reach the real host)</span>':''}</span>
-    <b>Abuse contacts</b><span>${esc([...(i.registrar_abuse||[]),...(i.ip_abuse||[])].join(', ')||'none published')}</span>
+  let h = '';
+  if (d.warning) {
+    h += `<div class="alert-warn" style="margin-bottom:16px">${esc(d.warning)}</div>`;
+  }
+  h += `<div class="card"><h2>Данные разведки</h2><div class="kv">
+    <b>Цель</b><span>${esc(i.brand_label || 'Золотое Яблоко (goldapple.ru)')}</span>
+    <b>Домен</b><span><code>${esc(i.domain)}</code></span>
+    <b>Зарегистрирован</b><span>${esc(i.created||'неизвестно')} ${fresh?'<span class="warn">— свежий домен, сильный признак фишинга</span>':''}</span>
+    <b>Регистратор</b><span>${esc(i.registrar||'неизвестно')}</span>
+    <b>IP-адреса</b><span>${esc((i.ips||[]).join(', ')||'—')}</span>
+    <b>NS-серверы</b><span>${esc((i.ns||[]).join(', ')||'—')}</span>
+    <b>Сеть</b><span>${esc(i.network||'неизвестно')}${i.cloudflare?' <span class="warn">(сайт за Cloudflare — отправьте жалобу в Cloudflare в первую очередь)</span>':''}</span>
+    <b>Abuse-контакты</b><span>${esc([...(i.registrar_abuse||[]),...(i.ip_abuse||[])].join(', ')||'не найдены')}</span>
   </div></div>`;
 
-  if (d.apis.length) h += `<div class="card"><h2>Blocklist APIs</h2><table>
-    <tr><th>Service</th><th>Result</th><th>Response</th></tr>` + d.apis.map(a =>
-    `<tr><td>${esc(a.name)}</td><td class="${a.status==='OK'?'ok':a.status==='SKIP'?'warn':'bad'}">${esc(a.status)}</td>
+  if (d.apis.length) h += `<div class="card"><h2>API блок-листов</h2><table>
+    <tr><th>Сервис</th><th>Результат</th><th>Ответ</th></tr>` + d.apis.map(a =>
+    `<tr><td>${esc(a.name)}</td><td class="${a.status==='OK'?'ok':(a.status==='SKIP'||a.status.startsWith('предпросмотр'))?'warn':'bad'}">${esc(a.status)}</td>
      <td class="note">${esc((a.detail||'').slice(0,180))}</td></tr>`).join('') + `</table></div>`;
 
-  if (d.emails.length) h += `<div class="card"><h2>Email complaints</h2>
-    <p class="note">This tool sends nothing. Each link opens a prefilled draft in your own
-      mail app — you read it and press Send there.</p>
-    <button class="ghost" onclick='openAllGmail(${JSON.stringify(d.emails.map(e=>e.gmail))})'>
-      Open all ${d.emails.length} in Gmail</button>
-    <button class="ghost" onclick='openAllMail(${JSON.stringify(d.emails.map(e=>e.mailto))})'>
-      Open all ${d.emails.length} in my mail app</button>
-    <table><tr><th>To</th><th>Who</th><th>Compose in</th><th>Saved copy</th></tr>` + d.emails.map(e =>
+  if (d.emails.length) h += `<div class="card"><h2>Письма жалоб</h2>
+    <p class="note">Зарубежным регистраторам и хостерам письма сформированы на английском. Нажмите на ссылку,
+      чтобы открыть готовый черновик в почтовом клиенте, либо отправьте через настроенный SMTP.</p>
+    <div class="actions" style="margin-bottom:10px">
+      <button class="ghost" onclick='openAllGmail(${JSON.stringify(d.emails.map(e=>e.gmail))})'>
+        Открыть все (${d.emails.length}) в Gmail</button>
+      <button class="ghost" onclick='openAllMail(${JSON.stringify(d.emails.map(e=>e.mailto))})'>
+        Открыть все (${d.emails.length}) в почтовом клиенте</button>
+    </div>
+    <table><tr><th>Кому</th><th>Получатель</th><th>Статус</th><th>Открыть</th><th>Файл .eml</th></tr>` + d.emails.map(e =>
     `<tr><td><code>${esc(e.to)}</code></td><td>${esc(e.label)}</td>
-     <td><a href="${esc(e.mailto)}">Mail app</a> · <a href="${esc(e.gmail)}" target="_blank" rel="noopener noreferrer">Gmail</a></td>
+     <td class="${String(e.status).startsWith('FAIL')?'bad':e.status==='SENT'?'ok':'note'}">${esc(e.status || '—')}</td>
+     <td><a href="${esc(e.mailto)}">Почта</a> · <a href="${esc(e.gmail)}" target="_blank" rel="noopener noreferrer">Gmail</a></td>
      <td class="note">${esc(e.file)}</td></tr>`).join('') + `</table></div>`;
 
   h += `<div id="browserbox"></div>`;
-  h += `<div class="card"><h2>Human-only forms</h2><table>` + d.manual.map(m =>
-    `<tr><td>${esc(m[0])}</td><td><a href="${esc(m[1])}" target="_blank" rel="noopener noreferrer">open</a></td></tr>`
+  h += `<div class="card"><h2>Ручные веб-формы</h2><table>` + d.manual.map(m =>
+    `<tr><td>${esc(m[0])}</td><td><a href="${esc(m[1])}" target="_blank" rel="noopener noreferrer">открыть</a></td></tr>`
     ).join('') + `</table></div>`;
   $('#out').innerHTML = h;
 }
@@ -612,38 +716,39 @@ async function pollBrowser() {
   const tick = async () => {
     const d = await (await fetch('/api/browser-status')).json();
     const rows = d.tabs.map(t => {
-      const cls = t.submitted ? 'ok' : t.status.startsWith('FAILED') ? 'bad'
+      const cls = t.submitted ? 'ok' : String(t.status || '').startsWith('FAIL') ? 'bad'
                 : t.captcha ? 'warn' : 'ok';
       const gate = t.verified ? '<span class="ok">confirmed</span>'
-                 : t.submitted ? '<span class="warn">verify it</span>'
-                 : t.captcha ? '<span class="warn">CAPTCHA — you</span>'
-                 : t.can_autosubmit ? '<span class="ok">auto</span>'
-                 : '<span class="warn">manual</span>';
-      const learned = t.learned ? `<span class="ok">learned ${t.learned}</span>`
-                    : t.recipe_steps ? `<span class="note">knows ${t.recipe_steps}</span>` : '';
+                 : t.submitted ? '<span class="warn">проверьте вкладку</span>'
+                 : t.captcha ? '<span class="warn">CAPTCHA — вручную</span>'
+                 : t.can_autosubmit ? '<span class="ok">готово</span>'
+                 : '<span class="warn">вручную</span>';
+      const learned = t.learned ? `<span class="ok">записано: ${t.learned}</span>`
+                    : t.recipe_steps ? `<span class="note">рецепт: ${t.recipe_steps}</span>` : '';
       return `<tr><td>${esc(t.name)}</td><td>${gate}</td>
-        <td class="${cls}">${esc(t.status)}${t.stage > 1 ? ` <span class="note">(stage ${t.stage})</span>` : ''}</td>
+        <td class="${cls}">${esc(t.status)}${t.stage > 1 ? ` <span class="note">(шаг ${t.stage})</span>` : ''}</td>
         <td class="note">${esc((t.picked||[]).join('; ')) || '—'}</td>
         <td>${learned}</td>
         <td class="${(t.flags||[]).length ? 'warn' : 'note'}">${esc((t.flags||[]).join('; ')) || '—'}</td>
         <td class="note">${esc(t.note)}</td></tr>`;
     }).join('');
     box.innerHTML = `<div class="card">
-      <h2>Vendor tabs ${d.open ? '— open' : '— closed'}</h2>
-      <p class="note">Glance down the list. <b>Submit all</b> presses Submit on every
-        CAPTCHA-free tab. The CAPTCHA ones are yours — solve and submit them in the browser,
-        and whatever you click there is learned for next time.</p>
-      <table><tr><th>Site</th><th>Gate</th><th>State</th><th>Choices made</th>
-        <th>Learned</th><th>Check these</th><th>What you still do</th></tr>${rows}</table>
-      ${d.open ? `<br><button class="go" onclick="submitAll()">Submit all (${d.ready} ready)</button>
-        <button class="ghost" onclick="closeBrowser()">Done — close browser</button>` : ''}
+      <h2>Вкладки вендоров ${d.open ? '— открыты' : '— закрыты'}</h2>
+      <p class="note">Проверьте таблицу. Кнопка <b>Отправить все</b> нажимает отправку во всех вкладках без CAPTCHA.
+        Вкладки с CAPTCHA пройдите вручную в открытом браузере — ваши действия запомнятся для следующих запусков.</p>
+      <table><tr><th>Площадка</th><th>Режим</th><th>Статус</th><th>Выбрано</th>
+        <th>Рецепт</th><th>Проверить</th><th>Что сделать вручную</th></tr>${rows}</table>
+      ${d.open ? `<div class="actions" style="margin-top:12px">
+        <button class="go" onclick="submitAll()">Отправить все (готово: ${d.ready})</button>
+        <button class="ghost" onclick="closeBrowser()">Готово — закрыть браузер</button>
+      </div>` : ''}
     </div>`;
     if (d.open) setTimeout(tick, 1500);
   };
   tick();
 }
 async function submitAll() {
-  if (!confirm('Press Submit on every CAPTCHA-free tab now?\n\nThese are real abuse reports and cannot be recalled.')) return;
+  if (!confirm('Отправить все вкладки без CAPTCHA сейчас?\n\nЭто реальные жалобы, их нельзя отозвать.')) return;
   await fetch('/api/submit-all', {method:'POST', body:'{}'});
 }
 function openAllGmail(links) {
@@ -657,44 +762,49 @@ async function closeBrowser(){ await fetch('/api/close-browser', {method:'POST',
 
 async function saveCT() {
   await fetch('/api/ct-set', {method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ct: $('#ct_on').checked ? 'on' : 'off',
-      ct_minutes: $('#ct_min').value, ct_keywords: $('#ct_kw').value,
-      notify: $('#notify_on').checked ? 'on' : 'off'})});
+    body: JSON.stringify({
+      ct: $('#ct_on').checked ? 'on' : 'off',
+      ct_minutes: $('#ct_min').value,
+      ct_keywords: $('#ct_kw').value,
+      notify: $('#notify_on').checked ? 'on' : 'off',
+    })});
   ctTick(); loadWiring();
 }
 
 async function scanCT() {
-  $('#ct_note').textContent = 'querying certificate logs… (crt.sh can take a minute)';
+  $('#ct_note').textContent = 'опрос логов сертификатов… (crt.sh может отвечать до минуты)';
   const d = await (await fetch('/api/ct-scan', {method:'POST', body:'{}'})).json();
   renderCT(d.hits, d);
-  $('#ct_note').textContent = `${d.new.length} new`;
+  $('#ct_note').textContent = `новых: ${d.new.length}`;
 }
 
 function renderCT(hits, meta) {
   const errs = Object.entries(meta.errors || {});
   const searched = (meta.searched || []).join(', ');
   const head = [
-    meta.last_scan ? `<span class="note">last scan ${esc(new Date(meta.last_scan).toLocaleString())}</span>` : '',
-    searched ? `<span class="note"> · searched ${esc(searched)}</span>` : '',
-    errs.length ? `<div class="warn" style="margin-top:6px">couldn't search:
-      ${errs.map(([k, v]) => `${esc(k)} — ${esc(v)}`).join('; ')}. That is a failed lookup,
-      not a clean result.</div>` : ''
+    meta.last_scan ? `<span class="note">последнее сканирование: ${esc(new Date(meta.last_scan).toLocaleString())}</span>` : '',
+    searched ? `<span class="note"> · запросы: ${esc(searched)}</span>` : '',
+    errs.length ? `<div class="warn" style="margin-top:6px">ошибка поиска:
+      ${errs.map(([k, v]) => `${esc(k)} — ${esc(v)}`).join('; ')}. Это сбой источника, а не отсутствие угроз.</div>` : ''
   ].join('');
   $('#ct_hits').innerHTML = head + (hits && hits.length ? `<table style="margin-top:8px">
-    <tr><th>Score</th><th>Lookalike</th><th>Brand</th><th>Why</th><th></th></tr>` +
+    <tr><th>Балл</th><th>Похожий домен</th><th>Ключ</th><th>Причины</th><th></th></tr>` +
     hits.map(h => `<tr>
       <td class="${h.score >= 6 ? 'bad' : 'warn'}">${h.score}</td>
       <td><code>${esc(h.domain)}</code></td>
       <td>${esc(h.brand)}</td>
       <td class="note">${esc((h.why || []).join('; '))}</td>
-      <td><button class="ghost" onclick="useCT('${esc(h.url)}','${esc(h.brand)}')">Report</button>
-          <button class="ghost" onclick="dropCT('${esc(h.domain)}')">Not phishing</button></td>
+      <td class="actions">
+        <button class="ghost" onclick="useCT('${esc(h.url)}')">В жалобу</button>
+        <button class="ghost" onclick="dropCT('${esc(h.domain)}')">Не фишинг</button>
+      </td>
     </tr>`).join('') + `</table>`
-    : '<p class="note" style="margin-top:8px">Nothing above the bar. Scoring is strict on purpose — a bare brand keyword scores zero, because thousands of legitimate names contain one.</p>');
+    : '<p class="note" style="margin-top:8px">Подозрительных доменов выше порога пока не найдено.</p>');
 }
 
-function useCT(url, brand) {
-  $('#url').value = url; $('#brand').value = brand;
+function useCT(url) {
+  $('#url').value = url;
+  checkSingleUrl();
   $('#url').scrollIntoView({behavior:'smooth', block:'center'});
 }
 async function dropCT(domain) {
@@ -710,7 +820,7 @@ async function ctTick() {
     $('#notify_on').checked = d.notify;
     $('#ct_kw').value = d.keywords || '';
     if (document.activeElement !== $('#ct_min')) $('#ct_min').value = d.minutes;
-    if (d.running) $('#ct_note').textContent = 'scanning…';
+    if (d.running) $('#ct_note').textContent = 'сканирование…';
     renderCT(d.hits, d);
   } catch (e) {}
   setTimeout(ctTick, 20000);
@@ -729,20 +839,21 @@ async function clipTick() {
     const chip = $('#clipchip');
     if (d.hit && d.hit.targets.length) {
       chip.innerHTML = `<div class="card" style="border-color:var(--acc)">
-        <h2>Link on your clipboard</h2>
+        <h2>Ссылка из буфера обмена</h2>
         ${d.hit.targets.map(t => `<div class="target">
           <div style="flex:1"><h3>${esc(t.url)}</h3>
-            <div>${t.brand ? `<span class="pill b">${esc(t.brand)}</span>` : ''}
+            <div><span class="pill b">Золотое Яблоко</span>
                  <span class="pill">${esc(t.domain)}</span></div></div>
-          <button class="go" onclick="grabClip('${esc(t.url)}','${esc(t.brand||'')}')">Use it</button>
+          <button class="go" onclick="grabClip('${esc(t.url)}')">В шаг 2</button>
         </div>`).join('')}
-        <button class="ghost" onclick="clearClip()">Dismiss</button></div>`;
+        <button class="ghost" onclick="clearClip()">Скрыть</button></div>`;
     } else chip.innerHTML = '';
   } catch (e) {}
   setTimeout(clipTick, 3000);
 }
-async function grabClip(url, brand) {
-  $('#url').value = url; $('#brand').value = brand;
+async function grabClip(url) {
+  $('#url').value = url;
+  checkSingleUrl();
   await clearClip();
   $('#url').scrollIntoView({behavior:'smooth', block:'center'});
 }
@@ -755,17 +866,17 @@ async function loadCampaigns() {
   const d = await (await fetch('/api/campaigns', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'})).json();
   $('#campaigns').innerHTML = d.groups.length ? d.groups.map((g, i) => `
     <div class="card" style="background:#0d1117">
-      <b>${g.size} pages</b>
+      <b>Ресурсов в группе: ${g.size}</b>
       ${g.brands.map(b => `<span class="pill b">${esc(b)}</span>`).join('')}
       ${g.registrars.map(r => `<span class="pill">${esc(r)}</span>`).join('')}
       <div class="note" style="margin-top:8px">${g.hosts.map(h => `<code>${esc(h)}</code>`).join(' · ')}</div>
-      <table style="margin-top:10px"><tr><th>Link</th><th>Evidence</th></tr>
+      <table style="margin-top:10px"><tr><th>Связь</th><th>Признаки</th></tr>
         ${g.links.map(l => `<tr><td class="note">${esc(l[0])} ↔ ${esc(l[1])}</td>
           <td class="note">${esc(l[2].join('; '))}</td></tr>`).join('')}</table>
-      <button class="ghost" style="margin-top:10px" onclick="showComplaint(${i})">Combined registrar complaint</button>
+      <button class="ghost" style="margin-top:10px" onclick="showComplaint(${i})">Сводная жалоба регистратору</button>
       <pre id="camp-${i}" class="hide" style="white-space:pre-wrap;background:#0d1117;border:1px solid var(--line);border-radius:6px;padding:12px;font-size:12px;margin-top:10px"></pre>
     </div>`).join('')
-    : `<p class="note">No campaigns yet — ${d.cases} case(s) on file, none share distinctive infrastructure.</p>`;
+    : `<p class="note">Кампаний пока не выявлено — дел в базе: ${d.cases}, общих признаков инфраструктуры нет.</p>`;
   window.__CAMPS = d.groups;
 }
 function showComplaint(i) {
@@ -776,11 +887,11 @@ function showComplaint(i) {
 
 async function loadRecipes() {
   const d = await (await fetch('/api/recipes', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'})).json();
-  $('#recipes').innerHTML = `<table><tr><th>Site</th><th>Steps learned</th><th>Last updated</th><th></th></tr>` +
+  $('#recipes').innerHTML = `<table><tr><th>Площадка</th><th>Записано шагов</th><th>Обновлено</th><th></th></tr>` +
     d.recipes.map(r => `<tr><td>${esc(r.name)}</td>
-      <td class="${r.steps?'ok':'note'}">${r.steps || 'nothing yet'}</td>
+      <td class="${r.steps?'ok':'note'}">${r.steps || 'пока нет'}</td>
       <td class="note">${r.updated ? esc(new Date(r.updated).toLocaleString()) : '—'}</td>
-      <td>${r.steps ? `<button class="ghost" onclick="forget('${r.id}')">Forget</button>` : ''}</td></tr>`).join('')
+      <td>${r.steps ? `<button class="ghost" onclick="forget('${r.id}')">Забыть</button>` : ''}</td></tr>`).join('')
     + `</table>`;
 }
 async function forget(id) {
@@ -790,45 +901,49 @@ async function forget(id) {
 
 async function loadRuns() {
   const d = await (await fetch('/api/history', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'})).json();
-  if (!d.cases.length) { $('#runs').innerHTML = '<p class="note">Nothing reported yet.</p>'; return; }
+  if (!d.cases.length) { $('#runs').innerHTML = '<p class="note">Жалоб пока не подавалось.</p>'; return; }
   $('#runs').innerHTML = d.cases.map(c => {
     const td = c.takedown || {};
-    const LABEL = {suspended:['ok','SUSPENDED by registrar'],
-                   offline:['warn','offline — still registered'],
-                   down:['ok','taken down'], blocked:['ok','blocked / warned'],
-                   'live-flagged':['warn','live, but flagged'], live:['bad','live, unflagged'],
-                   unknown:['note','not enough evidence']};
+    const LABEL = {
+      suspended: ['ok', 'приостановлен регистратором'],
+      offline: ['warn', 'недоступен — домен ещё зарегистрирован'],
+      down: ['ok', 'снят'],
+      blocked: ['ok', 'заблокирован / предупреждение'],
+      'live-flagged': ['warn', 'работает, но есть в блок-листах'],
+      live: ['bad', 'работает, не заблокирован'],
+      unknown: ['note', 'недостаточно данных'],
+    };
     const lab = LABEL[td.state] || (td.checked ? LABEL.unknown : null);
     const state = lab ? `<span class="${lab[0]}">${lab[1]}</span>` +
         (td.why ? ` <span class="note">— ${esc(td.why)}</span>` : '')
-      : '<span class="note">not checked</span>';
+      : '<span class="note">не проверялось</span>';
     const due = c.icann_eligible_at ? new Date(c.icann_eligible_at) : null;
     const icann = due ? (due < new Date()
-        ? '<span class="warn">ICANN complaint now allowed</span>'
-        : `<span class="note">ICANN after ${due.toLocaleString()}</span>`) : '';
+        ? '<span class="warn">можно подать жалобу в ICANN</span>'
+        : `<span class="note">ICANN доступен после ${due.toLocaleString()}</span>`) : '';
     return `<div class="card" style="background:#0d1117">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap">
         <b><code>${esc(c.url || c.host)}</code></b>
         <span class="note">${esc(new Date(c.first_reported).toLocaleString())}</span>
       </div>
       <div class="kv" style="margin-top:10px">
-        <b>Brand</b><span>${esc(c.brand || '—')}</span>
-        <b>Registrar</b><span>${esc(c.registrar || '—')}</span>
-        <b>Blocklist APIs</b><span>${c.apis_ok.length ? '<span class="ok">' + esc(c.apis_ok.join(', ')) + '</span>' : '<span class="note">none confirmed</span>'}</span>
-        <b>Vendor forms</b><span><span class="ok">${c.vendors_confirmed} confirmed</span> ·
-          <span class="warn">${c.vendors_clicked} clicked, unverified</span> ·
-          <span class="note">${c.vendors_total} touched</span></span>
-        <b>Emails</b><span>${c.emails_sent} of ${c.emails_total} marked sent</span>
-        <b>Site status</b><span>${state} ${td.checked ? '<span class="note">— checked ' + esc(new Date(td.checked).toLocaleString()) + (td.status && td.status.length ? ', ' + esc(td.status.join(', ')) : '') + '</span>' : ''}</span>
-        <b>Follow-up</b><span>${icann}</span>
+        <b>Цель</b><span>${esc(c.brand || 'Золотое Яблоко (goldapple.ru)')}</span>
+        <b>Регистратор</b><span>${esc(c.registrar || '—')}</span>
+        <b>API блок-листов</b><span>${c.apis_ok.length ? '<span class="ok">' + esc(c.apis_ok.join(', ')) + '</span>' : '<span class="note">нет подтверждённых</span>'}</span>
+        <b>Формы вендоров</b><span><span class="ok">${c.vendors_confirmed} confirmed</span> ·
+          <span class="warn">${c.vendors_clicked} нажато без подтверждения</span> ·
+          <span class="note">всего: ${c.vendors_total}</span></span>
+        <b>Письма</b><span>отмечено отправленными: ${c.emails_sent} из ${c.emails_total}</span>
+        <b>Статус сайта</b><span>${state} ${td.checked ? '<span class="note">— проверено ' + esc(new Date(td.checked).toLocaleString()) + (td.status && td.status.length ? ', ' + esc(td.status.join(', ')) : '') + '</span>' : ''}</span>
+        <b>Эскалация</b><span>${icann || '—'}</span>
       </div>
-      <div style="margin-top:12px">
-        <button class="ghost" onclick="recheck('${esc(c.host)}', false)">Check status</button>
+      <div class="actions" style="margin-top:12px">
+        <button class="ghost" onclick="recheck('${esc(c.host)}', false)">Проверить статус</button>
         <button class="ghost" onclick="recheck('${esc(c.host)}', true)"
-          title="Fetches the page from your own IP">Check + fetch the page</button>
-        <button class="ghost" onclick="openCase('${esc(c.host)}')">Details</button>
-        <button class="ghost" onclick="escalation('${esc(c.host)}')">ICANN escalation</button>
-        <button class="ghost" onclick="makeBundle('${esc(c.host)}')">Evidence bundle</button>
+          title="Выполняет прямой запрос к сайту с вашего IP">Проверить + открыть HTTP</button>
+        <button class="ghost" onclick="openCase('${esc(c.host)}')">Подробности</button>
+        <button class="ghost" onclick="escalation('${esc(c.host)}')">Жалоба в ICANN</button>
+        <button class="ghost" onclick="makeBundle('${esc(c.host)}')">Пакет доказательств</button>
       </div>
       <div id="case-${esc(c.host)}"></div>
     </div>`;
@@ -836,11 +951,11 @@ async function loadRuns() {
 }
 
 async function recheck(host, touch) {
-  if (touch && !confirm('This fetches the phishing page from YOUR IP address.\n\n' +
-      'Every other check avoids that. Only do it if you want to see what the page serves now.'))
+  if (touch && !confirm('Будет выполнен прямой HTTP-запрос на фишинговый сайт с ВАШЕГО IP-адреса.\n\n' +
+      'Остальные проверки этого не делают. Продолжить?'))
     return;
   const el = document.getElementById('case-' + host);
-  if (el) el.innerHTML = '<p class="note">checking registry, DNS, urlscan, VirusTotal…</p>';
+  if (el) el.innerHTML = '<p class="note">проверка RDAP, DNS, Google Safe Browsing, urlscan.io, VirusTotal…</p>';
   const r = await fetch('/api/recheck', {method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({host, touch_site: !!touch})});
   const d = await r.json();
@@ -848,8 +963,14 @@ async function recheck(host, touch) {
   showSignals(host, d.check);
 }
 
-const SIGNAL_NAMES = {registry:'Registry (RDAP)', dns:'DNS', urlscan:'urlscan.io',
-                      vt:'VirusTotal', http:'Direct fetch'};
+const SIGNAL_NAMES = {
+  registry: 'Реестр (RDAP)',
+  dns: 'DNS',
+  safebrowsing: 'Google Safe Browsing',
+  urlscan: 'urlscan.io',
+  vt: 'VirusTotal',
+  http: 'Прямой HTTP-запрос',
+};
 
 function showSignals(host, chk) {
   const box = document.getElementById('case-' + host);
@@ -857,22 +978,22 @@ function showSignals(host, chk) {
   const rows = Object.entries(chk.signals).map(([k, v]) => {
     let extra = '';
     if (k === 'dns') extra = `${(v.ips||[]).join(', ')}<br><span class="note">ns: ${esc((v.ns||[]).join(', '))}</span>`
-      + (v.ns_changed ? ' <span class="warn">nameservers moved</span>' : '');
+      + (v.ns_changed ? ' <span class="warn">NS-серверы изменились</span>' : '');
     if (k === 'registry') extra = esc((v.status||[]).join(', '));
-    if (k === 'vt' && v.ok) extra = `<span class="${v.flagged?'ok':'warn'}">${v.malicious} malicious · ${v.suspicious} suspicious</span> <span class="note">of ${v.harmless + v.malicious + v.suspicious} engines</span>`;
-    if (k === 'urlscan' && v.report) extra = `<a href="${esc(v.report)}" target="_blank" rel="noopener noreferrer">scan report</a>`;
-    if (k === 'http') extra = `HTTP ${v.code}` + (v.cloudflare_warning ? ' <span class="ok">phishing interstitial</span>' : '');
+    if (k === 'vt' && v.ok) extra = `<span class="${v.flagged?'ok':'warn'}">вредоносных: ${v.malicious} · подозрительных: ${v.suspicious}</span> <span class="note">из ${v.harmless + v.malicious + v.suspicious} движков</span>`;
+    if (k === 'urlscan' && v.report) extra = `<a href="${esc(v.report)}" target="_blank" rel="noopener noreferrer">отчёт сканирования</a>`;
+    if (k === 'http') extra = `HTTP ${v.code}` + (v.cloudflare_warning ? ' <span class="ok">предупреждение о фишинге</span>' : '');
     return `<tr><td>${SIGNAL_NAMES[k] || k}</td>
       <td class="${v.ok === false ? 'note' : ''}">${esc(v.note || '')}</td>
       <td class="note">${extra}</td></tr>`;
   }).join('');
   box.dataset.open = '1';
   box.innerHTML = `<div style="margin-top:14px">
-    <h2>Status signals</h2>
-    <p class="note">Nothing here contacts the phishing site${chk.touched_site ? ', except the direct fetch you asked for' : ' — the scammer never sees your IP'}.</p>
-    <table><tr><th>Source</th><th>Reading</th><th>Detail</th></tr>${rows}</table>
-    <p class="note" style="margin-top:10px">Checked ${esc(new Date(chk.checked).toLocaleString())}.
-      <button class="ghost" onclick="openCase('${esc(host)}')">Full case details</button></p>
+    <h2>Сигналы проверки статуса</h2>
+    <p class="note">Обращений к фишинговому сайту не было${chk.touched_site ? ', кроме запрошенного вами прямого HTTP-запроса' : ' — мошенники не видят ваш IP'}.</p>
+    <table><tr><th>Источник</th><th>Результат</th><th>Детали</th></tr>${rows}</table>
+    <p class="note" style="margin-top:10px">Проверено: ${esc(new Date(chk.checked).toLocaleString())}.
+      <button class="ghost" onclick="openCase('${esc(host)}')">Открыть дело полностью</button></p>
   </div>`;
 }
 
@@ -884,7 +1005,7 @@ async function openCase(host) {
   const c = d.case || {};
   const vendors = Object.entries(c.vendors || {}).map(([id, v]) =>
     `<tr><td>${esc(v.name || id)}</td>
-       <td class="${v.verified?'ok':v.submitted?'warn':'note'}">${v.verified?'confirmed':v.submitted?'clicked, unverified':'not submitted'}</td>
+       <td class="${v.verified?'ok':v.submitted?'warn':'note'}">${v.verified?'confirmed':v.submitted?'нажато, без подтверждения':'не отправлено'}</td>
        <td class="note">${esc(v.status || '')}</td>
        <td class="note">${esc((v.picked||[]).join('; ')) || '—'}</td>
        <td class="note">${v.ts ? esc(new Date(v.ts).toLocaleString()) : ''}</td></tr>`).join('');
@@ -892,8 +1013,8 @@ async function openCase(host) {
     `<tr><td><code>${esc(to)}</code></td><td class="note">${esc(e.label||'')}</td>
        <td><label style="display:flex;gap:6px;align-items:center;margin:0">
          <input type="checkbox" ${e.sent?'checked':''}
-           onchange="markSent('${esc(host)}','${esc(to)}',this.checked)"> sent</label></td>
-       <td>${e.mailto?`<a href="${esc(e.mailto)}">Mail app</a>`:''}
+           onchange="markSent('${esc(host)}','${esc(to)}',this.checked)"> отправлено</label></td>
+       <td>${e.mailto?`<a href="${esc(e.mailto)}">Почта</a>`:''}
            ${e.gmail?` · <a href="${esc(e.gmail)}" target="_blank" rel="noopener noreferrer">Gmail</a>`:''}</td>
        <td class="note">${e.sent_ts ? esc(new Date(e.sent_ts).toLocaleString()) : ''}</td></tr>`).join('');
   box.dataset.open = '1';
@@ -901,40 +1022,37 @@ async function openCase(host) {
     `<tr><td class="note">${esc(new Date(k.checked).toLocaleString())}</td>
        <td>${esc(k.state)}</td><td class="note">${esc(k.why)}</td></tr>`).join('');
   const ev = c.evidence || {};
-  const evidence = (ev.screenshot || ev.report) ? `<h2>Evidence</h2>
-    <p class="note">Captured by urlscan.io, so you never loaded the page yourself.</p>
-    ${ev.screenshot ? `<img src="${esc(ev.screenshot)}" alt="page screenshot"
+  const evidence = (ev.screenshot || ev.report) ? `<h2>Доказательства</h2>
+    <p class="note">Снимок получен через urlscan.io без прямого захода на сайт.</p>
+    ${ev.screenshot ? `<img src="${esc(ev.screenshot)}" alt="скриншот страницы"
       style="max-width:420px;border:1px solid var(--line);border-radius:6px">` : ''}
-    ${ev.report ? `<p><a href="${esc(ev.report)}" target="_blank" rel="noopener noreferrer">full scan report</a></p>` : ''}` : '';
+    ${ev.report ? `<p><a href="${esc(ev.report)}" target="_blank" rel="noopener noreferrer">полный отчёт urlscan.io</a></p>` : ''}` : '';
   box.innerHTML = `<div style="margin-top:14px">
     ${evidence}
-    ${timeline ? `<h2 style="margin-top:16px">Status over time</h2>
-      <table><tr><th>Checked</th><th>State</th><th>Why</th></tr>${timeline}</table>` : ''}
-    <h2 style="margin-top:16px">Vendor forms</h2>
-    <table><tr><th>Site</th><th>Result</th><th>Detail</th><th>Choices</th><th>When</th></tr>${vendors || '<tr><td class="note">none</td></tr>'}</table>
-    <h2 style="margin-top:16px">Email complaints</h2>
-    <p class="note">Tick what you actually sent — the tool cannot know, and the ICANN
-      follow-up needs the date.</p>
-    <table><tr><th>To</th><th>Who</th><th>Sent</th><th>Compose</th><th>When</th></tr>${emails || '<tr><td class="note">none</td></tr>'}</table>
+    ${timeline ? `<h2 style="margin-top:16px">История проверок</h2>
+      <table><tr><th>Время</th><th>Статус</th><th>Подробности</th></tr>${timeline}</table>` : ''}
+    <h2 style="margin-top:16px">Формы вендоров</h2>
+    <table><tr><th>Площадка</th><th>Итог</th><th>Подробности</th><th>Выбрано</th><th>Время</th></tr>${vendors || '<tr><td colspan="5" class="note">нет записей</td></tr>'}</table>
+    <h2 style="margin-top:16px">Письма жалоб</h2>
+    <p class="note">Отметьте отправленные вручную письма — дата отправки нужна для отсчёта 24 часов до жалобы в ICANN.</p>
+    <table><tr><th>Кому</th><th>Получатель</th><th>Отправлено</th><th>Открыть</th><th>Время</th></tr>${emails || '<tr><td colspan="5" class="note">нет записей</td></tr>'}</table>
   </div>`;
 }
 
 async function makeBundle(host) {
   const box = document.getElementById('case-' + host);
   box.dataset.open = '1';
-  box.innerHTML = '<p class="note">building the bundle, fetching the capture…</p>';
+  box.innerHTML = '<p class="note">сборка пакета доказательств…</p>';
   const d = await (await fetch('/api/bundle', {method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({host})})).json();
   if (d.error) { box.innerHTML = `<p class="bad">${esc(d.error)}</p>`; return; }
   box.innerHTML = `<div style="margin-top:14px">
-    <h2>Evidence bundle</h2>
-    <p class="note">Everything this case knows, readable by someone who was not here —
-      for a registrar, a bank, or a police report.</p>
+    <h2>Пакет доказательств</h2>
+    <p class="note">Все собранные материалы по делу — для регистратора, банка или обращения в органы.</p>
     <p><a href="${esc(d.download)}" download><b>${esc(d.file)}</b></a></p>
-    <table><tr><th>File</th></tr>${d.contents.map(f => `<tr><td><code>${esc(f)}</code></td></tr>`).join('')}</table>
-    <p class="note">Saved at <code>${esc(d.path)}</code>. Open <code>report.html</code> and
-      print to PDF if you need one document.</p>
-    <button class="ghost" onclick="openCase('${esc(host)}')">Back to case details</button>
+    <table><tr><th>Файл в архиве</th></tr>${d.contents.map(f => `<tr><td><code>${esc(f)}</code></td></tr>`).join('')}</table>
+    <p class="note">Сохранено в <code>${esc(d.path)}</code>. Откройте <code>report.html</code> и распечатайте в PDF при необходимости.</p>
+    <button class="ghost" onclick="openCase('${esc(host)}')">Назад к делу</button>
   </div>`;
 }
 
@@ -944,16 +1062,17 @@ async function escalation(host) {
   const box = document.getElementById('case-' + host);
   box.dataset.open = '1';
   box.innerHTML = `<div style="margin-top:14px">
-    <h2>ICANN escalation</h2>
+    <h2>Эскалация в ICANN</h2>
     ${d.ready
-      ? `<p class="ok">Ready to file. ICANN enforces the registrar's duty to act, so this
-         only works because the registrar was contacted and did nothing.</p>
-         <p><a href="${esc(d.form)}" target="_blank" rel="noopener noreferrer">Open the ICANN abuse report form</a>
-         — paste the text below into it.</p>`
-      : `<p class="warn">Not ready yet:</p><ul class="note">${d.blockers.map(b => `<li>${esc(b)}</li>`).join('')}</ul>`}
+      ? `<p class="ok">Готово к подаче. ICANN обязывает регистратора реагировать на жалобы, если он проигнорировал обращение более 24 часов.</p>
+         <p><a href="${esc(d.form)}" target="_blank" rel="noopener noreferrer">Открыть форму жалобы ICANN</a>
+         — вставьте текст ниже.</p>`
+      : `<p class="warn">Пока не готово к подаче:</p><ul class="note">${d.blockers.map(b => `<li>${esc(b)}</li>`).join('')}</ul>`}
     <pre style="white-space:pre-wrap;background:#0d1117;border:1px solid var(--line);border-radius:6px;padding:12px;font-size:12px">${esc(d.text)}</pre>
-    <button class="ghost" onclick="navigator.clipboard.writeText(document.querySelector('#case-${esc(host)} pre').textContent)">Copy</button>
-    <button class="ghost" onclick="openCase('${esc(host)}')">Back to case details</button>
+    <div class="actions">
+      <button class="ghost" onclick="navigator.clipboard.writeText(document.querySelector('#case-${esc(host)} pre').textContent)">Копировать текст</button>
+      <button class="ghost" onclick="openCase('${esc(host)}')">Назад к делу</button>
+    </div>
   </div>`;
 }
 
@@ -968,3 +1087,4 @@ loadWiring();
 clipTick();
 ctTick();
 </script>
+</html>
